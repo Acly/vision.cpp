@@ -26,7 +26,7 @@ jobs:
 
       - name: Configure and build
         run: |
-          cmake -G Ninja . -B build
+          cmake . -B build -G Ninja -D VISP_FMT_LIB=ON
           cmake --build build --config Release
 
       - name: Run tests
@@ -51,7 +51,7 @@ jobs:
 
       - name: Configure and build with Vulkan
         run: |
-          cmake -G Ninja . -B build -D VISP_VULKAN=ON
+          cmake . -B build -G Ninja -D VISP_VULKAN=ON -D VISP_FMT_LIB=ON
           cmake --build build --config Release
 
       - name: Run tests
@@ -67,9 +67,12 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
       - name: Configure and build
         run: |
-          cmake -G Ninja . -B build
+          cmake . -B build -G Ninja
           cmake --build build --config Release
 
       - name: Run tests
@@ -77,7 +80,7 @@ jobs:
 
   build-test-macos:
     name: Build & Test on macOS (CPU only)
-    runs-on: macos-latest
+    runs-on: macos-14
 
     steps:
       - name: Checkout code
@@ -86,11 +89,11 @@ jobs:
           submodules: recursive
 
       - name: Install dependencies
-        run: brew install cmake ninja
+        run: brew install cmake
 
       - name: Configure and build
         run: |
-          cmake -G Ninja . -B build
+          cmake -G Ninja . -B build -D GGML_METAL=OFF -D GGML_RPC=ON -D CMAKE_BUILD_RPATH="@loader_path"
           cmake --build build --config Release
 
       - name: Run tests
