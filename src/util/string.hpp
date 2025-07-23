@@ -87,12 +87,14 @@ inline void assertion_failure(char const* file, int line, char const* expr) {
     auto msg = format<fixed_string<256>>("Assertion failed at {}:{}: {}\n", file, line, expr);
     fwrite(msg.data, 1, msg.length, stderr);
 
-#ifdef VISP_ASSERT_BREAK
+#if defined(VISP_ASSERT_BREAK)
 #    ifdef _MSC_VER
     __debugbreak();
 #    else
     __builtin_trap();
 #    endif
+#elif defined(VISP_ASSERT_THROW)
+    throw exception(msg.c_str());
 #else
     std::abort();
 #endif

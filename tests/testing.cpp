@@ -52,11 +52,11 @@ int main(int argc, char** argv) {
 
             ++passed;
             if (verbose) {
-                printf(" \033[32mPASSED\033[0m\n", name);
+                printf(" %s\n", "\033[32mPASSED\033[0m");
             }
         } catch (const visp::test_failure& e) {
             ++failed;
-            printf(" \033[31mFAILED\033[0m\n", name);
+            printf(" %s\n", "\033[31mFAILED\033[0m");
             printf("  \033[90m%s:%d:\033[0m Assertion failed\n", e.file, e.line);
             printf("  \033[93m%s\033[0m\n", e.condition);
             if (e.eval) {
@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
             }
         } catch (const std::exception& e) {
             ++errors;
-            printf(" \033[31mERROR\033[0m\n", name);
+            printf(" %s\n", "\033[31mERROR\033[0m");
             printf("  \033[90m%s:%d:\033[0m Unhandled exception\n", test.file, test.line);
             printf("  \033[93m%s\033[0m\n", e.what());
         }

@@ -73,8 +73,9 @@ template <typename T>
 bool test_is_equal(T const& a, T const& b) {
     if constexpr (std::is_floating_point_v<T>) {
         return std::abs(a - b) <= test_tolerance_value();
+    } else {
+        return a == b;
     }
-    return a == b;
 }
 
 template <typename LHS, typename RHS>

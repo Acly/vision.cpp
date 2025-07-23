@@ -26,11 +26,14 @@ jobs:
 
       - name: Configure and build
         run: |
-          cmake . -B build -G Ninja -D VISP_FMT_LIB=ON
-          cmake --build build --config Release
+          cmake . -B build -G Ninja \
+            -D CMAKE_BUILD_TYPE=Release \
+            -D VISP_CI=ON \
+            -D VISP_FMT_LIB=ON
+          cmake --build build
 
       - name: Run tests
-        run: ctest build -C Release
+        run: ctest build
 
   build-test-ubuntu-vulkan:
     name: Build & Test on Ubuntu 22.04 with Vulkan
@@ -51,11 +54,15 @@ jobs:
 
       - name: Configure and build with Vulkan
         run: |
-          cmake . -B build -G Ninja -D VISP_VULKAN=ON -D VISP_FMT_LIB=ON
-          cmake --build build --config Release
+          cmake . -B build -G Ninja \
+            -D CMAKE_BUILD_TYPE=Release \
+            -D VISP_CI=ON \
+            -D VISP_VULKAN=ON \
+            -D VISP_FMT_LIB=ON
+          cmake --build build
 
       - name: Run tests
-        run: ctest build -C Release
+        run: ctest build
 
   build-test-windows:
     name: Build & Test on Windows (CPU only)
@@ -72,11 +79,13 @@ jobs:
 
       - name: Configure and build
         run: |
-          cmake . -B build -G Ninja
-          cmake --build build --config Release
+          cmake . -B build -G Ninja \
+            -D CMAKE_BUILD_TYPE=Release \
+            -D VISP_CI=ON
+          cmake --build build
 
       - name: Run tests
-        run: ctest build -C Release
+        run: ctest build
 
   build-test-macos:
     name: Build & Test on macOS (CPU only)
@@ -93,8 +102,13 @@ jobs:
 
       - name: Configure and build
         run: |
-          cmake -G Ninja . -B build -D GGML_METAL=OFF -D GGML_RPC=ON -D CMAKE_BUILD_RPATH="@loader_path"
-          cmake --build build --config Release
+          cmake -G Ninja . -B build \
+            -D CMAKE_BUILD_TYPE=Release \
+            -D VISP_CI=ON \
+            -D GGML_METAL=OFF \
+            -D GGML_RPC=ON \
+            -D CMAKE_BUILD_RPATH="@loader_path"
+          cmake --build build
 
       - name: Run tests
-        run: ctest build -C Release
+        run: ctest build

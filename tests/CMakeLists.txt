@@ -6,8 +6,8 @@ target_sources(test-vision PRIVATE
   test-image.cpp
 )
 target_include_directories(test-vision PRIVATE . ../src)
-target_compile_options(visioncpp PRIVATE ${VISP_WARNINGS})
-target_compile_definitions(visioncpp PRIVATE ${VISP_ASSERT} ${VISP_FMT_DEFS})
+target_compile_options(test-vision PRIVATE ${VISP_WARNINGS})
+target_compile_definitions(test-vision PRIVATE ${VISP_ASSERT} ${VISP_FMT_DEFS})
 target_link_libraries(test-vision PRIVATE visioncpp ${VISP_FMT_LINK})
 add_test(NAME vision COMMAND test-vision -v)
 
@@ -20,8 +20,8 @@ target_sources(test-models PRIVATE
   test-models.cpp
 )
 target_include_directories(test-models PRIVATE . ../src)
-target_compile_options(visioncpp PRIVATE ${VISP_WARNINGS})
-target_compile_definitions(visioncpp PRIVATE ${VISP_ASSERT} ${VISP_FMT_DEFS})
+target_compile_options(test-models PRIVATE ${VISP_WARNINGS})
+target_compile_definitions(test-models PRIVATE ${VISP_ASSERT} ${VISP_FMT_DEFS})
 target_link_libraries(test-models PRIVATE visioncpp ${VISP_FMT_LINK})
 if(VISP_VULKAN)
   add_test(NAME models COMMAND test-models -v)

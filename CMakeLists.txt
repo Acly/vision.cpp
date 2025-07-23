@@ -18,6 +18,8 @@ endif()
 
 if(VISP_DEV)
   set(VISP_ASSERT "VISP_ASSERT_BREAK")
+elseif(VISP_CI)
+  set(VISP_ASSERT "VISP_ASSERT_THROW")
 elseif(CMAKE_BUILD_TYPE)
   if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     set(VISP_ASSERT "VISP_ASSERT_BREAK")
@@ -63,11 +65,15 @@ endif()
 set(GGML_VULKAN ${VISP_VULKAN})
 set(GGML_LLAMAFILE ON)
 if(VISP_CI)
-  set(GGML_NATIVE OFF)
   set(GGML_BACKEND_DL ON)
-  foreach (feat SSE42 AVX AVX2 F16C BMI2 FMA) # ~haswell and newer
-    set(GGML_${feat} ON)
-  endforeach()
+  if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(aarch64|arm.*|ARM64)$")
+    # set default for ARM
+  else()
+    set(GGML_NATIVE OFF)
+    foreach (feat SSE42 AVX AVX2 F16C BMI2 FMA) # ~haswell and newer
+      set(GGML_${feat} ON)
+    endforeach()
+  endif()
 endif()
 add_subdirectory(depend/ggml)
 
