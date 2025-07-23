@@ -79,7 +79,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: visioncpp
+          name: visioncpp-${{ matrix.os }}
           path: |
             ./build/*.tar.gz
             ./build/*.zip
