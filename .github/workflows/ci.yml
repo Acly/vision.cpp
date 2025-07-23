@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-test-ubuntu:
+    name: Build & Test on Ubuntu 22.04 (CPU only)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ ninja-build
+
+      - name: Configure and build
+        run: |
+          cmake -G Ninja . -B build
+          cmake --build build --config Release
+
+      - name: Run tests
+        run: ctest build -C Release
+
+  build-test-ubuntu-vulkan:
+    name: Build & Test on Ubuntu 22.04 with Vulkan
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential cmake g++ ninja-build mesa-vulkan-drivers vulkan-sdk
+
+      - name: Configure and build with Vulkan
+        run: |
+          cmake -G Ninja . -B build -D VISP_VULKAN=ON
+          cmake --build build --config Release
+
+      - name: Run tests
+        run: ctest build -C Release
+
+  build-test-windows:
+    name: Build & Test on Windows (CPU only)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Configure and build
+        run: |
+          cmake -G Ninja . -B build
+          cmake --build build --config Release
+
+      - name: Run tests
+        run: ctest build -C Release
+
+  build-test-macos:
+    name: Build & Test on macOS (CPU only)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: brew install cmake ninja
+
+      - name: Configure and build
+        run: |
+          cmake -G Ninja . -B build
+          cmake --build build --config Release
+
+      - name: Run tests
+        run: ctest build -C Release

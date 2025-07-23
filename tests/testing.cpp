@@ -39,8 +39,10 @@ int main(int argc, char** argv) {
 
     auto run = [&](test_case const& test, char const* name, backend_type backend) {
         try {
-            printf("%s", name);
-            fflush(stdout);
+            if (verbose) {
+                printf("%s", name);
+                fflush(stdout);
+            }
 
             if (test.is_backend_test) {
                 test.backend_func(backend);
@@ -94,7 +96,9 @@ int main(int argc, char** argv) {
         std::chrono::duration_cast<std::chrono::milliseconds>(time_end - time_start).count();
 
     char const* color = (failed > 0 || errors > 0) ? "\033[31m" : "\033[32m";
-    printf("%s----------------------------------------------------------------------\n", color);
+    if (verbose || failed > 0 || errors > 0) {
+        printf("%s----------------------------------------------------------------------\n", color);
+    }
     if (failed > 0) {
         printf("\033[31m%d failed, ", failed);
     }

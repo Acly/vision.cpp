@@ -30,7 +30,7 @@ See [Building](#building) to build from source. Binaries can be found in `build/
 Let's use MobileSAM to generate a segmentation mask for the <object>
 at pixel position (320, 240).
 
-You can download the required model from huggingface: [MobileSAM-F16.gguf]().
+You can download the required model from huggingface: [MobileSAM-F16.gguf](https://huggingface.co/Acly/MobileSAM-GGUF/resolve/main/MobileSAM-F16.gguf).
 
 #### CLI
 
@@ -93,14 +93,14 @@ vision-cli esrgan -m models/4x_foolhardy_Remacrih-F16.gguf -i input.png -o outpu
 
 ### Converting models
 
-Models need to be converted to GGUF before they can be used. This can also
+Models need to be converted to GGUF before they can be used. This will also
 rearrange or precompute tensors for more optimal inference.
 
-To convert eg. an ESRGAN model, install [uv](https://docs.astral.sh/uv/) and run:
+To convert a model, install [uv](https://docs.astral.sh/uv/) and run:
 ```sh
-uv run scripts/convert.py esrgan 4x_NMKD-Superscale-SP_178000_G.pth -q f16
+uv run scripts/convert.py <arch> MyModel.pth -q f16
 ```
-This will create `models/4x_NMKD-Superscale-SP_178000_G-F16.gguf`.
+where `<arch>` is one of `sam, birefnet, esrgan, ...`. This will create `models/MyModel-F16.gguf`.
 
 See `convert.py --help` for more options.
 
@@ -110,7 +110,7 @@ Building requires CMake and a compiler with C++20 support.
 
 **Get the sources**
 ```sh
-git clone --recursive
+git clone https://github.com/Acly/vision.cpp.git --recursive
 cd vision.cpp
 ```
 
@@ -120,16 +120,16 @@ cmake . -B build
 cmake --build build --config Release
 ```
 
-### Vulkan
+### _(Optional)_ Vulkan
 
 Vulkan GPU support requires the [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/) to be installed.
 
 ```sh
-cmake . -B build -DVISP_VULKAN=ON
+cmake . -B build -D VISP_VULKAN=ON
 cmake --build build --config Release
 ```
 
-### Tests
+### _(Optional)_ Tests
 
 Run all tests with the following command:
 ```sh
