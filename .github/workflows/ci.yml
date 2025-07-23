@@ -77,9 +77,10 @@ jobs:
         run: cpack
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: visioncpp
           path: |
             ./build/*.tar.gz
             ./build/*.zip
+          compression-level: 0
