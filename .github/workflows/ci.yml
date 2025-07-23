@@ -67,7 +67,7 @@ jobs:
 
       - name: Test
         working-directory: ./build
-        run: ctest --verbose
+        run: ctest --verbose -C Release
 
       - name: Install
         run: cmake --install build --prefix install
