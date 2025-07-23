@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
     if (errors > 0) {
         printf("\033[31m%d errors, ", errors);
     }
-    printf("\033[92m%d passed %sin %lldms\033[0m\n", passed, color, duration);
+    printf("\033[92m%d passed %sin %lldms\033[0m\n", passed, color, (long long)duration);
 
     return (failed > 0 || errors > 0) ? 1 : 0;
 }
@@ -119,7 +119,10 @@ test_registry& test_registry_instance() {
 
 test_registration::test_registration(
     char const* name, test_function f, char const* file, int line) {
-    test_case t{name, file, line};
+    test_case t;
+    t.name = name;
+    t.file = file;
+    t.line = line;
     t.func = f;
     t.is_backend_test = false;
     test_registry_instance().tests.push_back(t);
@@ -127,7 +130,10 @@ test_registration::test_registration(
 
 test_registration::test_registration(
     char const* name, test_backend_function f, char const* file, int line) {
-    test_case t{name, file, line};
+    test_case t;
+    t.name = name;
+    t.file = file;
+    t.line = line;
     t.backend_func = f;
     t.is_backend_test = true;
     test_registry_instance().tests.push_back(t);
