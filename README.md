@@ -116,8 +116,8 @@ cd vision.cpp
 
 **Configure and build**
 ```sh
-cmake . -B build
-cmake --build build --config Release
+cmake . -B build -D CMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
 
 ### _(Optional)_ Vulkan
@@ -125,20 +125,21 @@ cmake --build build --config Release
 Vulkan GPU support requires the [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/) to be installed.
 
 ```sh
-cmake . -B build -D VISP_VULKAN=ON
-cmake --build build --config Release
+cmake . -B build -D CMAKE_BUILD_TYPE=Release -D VISP_VULKAN=ON
+cmake --build build
 ```
 
 ### _(Optional)_ Tests
 
-Run all tests with the following command:
+Run all C++ tests with the following command:
 ```sh
-ctest build -C Release
+cd build
+ctest
 ```
 
 Some tests require a Python environment. It can be set up with [uv](https://docs.astral.sh/uv/):
 ```sh
-# Setup venv and install dependencies
+# Setup venv and install dependencies (once only)
 uv sync
 
 # Run only python tests

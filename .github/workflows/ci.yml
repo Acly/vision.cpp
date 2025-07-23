@@ -10,32 +10,6 @@ on:
 
 jobs:
   build-test-ubuntu:
-    name: Build & Test on Ubuntu 22.04 (CPU only)
-    runs-on: ubuntu-22.04
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake g++ ninja-build
-
-      - name: Configure and build
-        run: |
-          cmake . -B build -G Ninja \
-            -D CMAKE_BUILD_TYPE=Release \
-            -D VISP_CI=ON \
-            -D VISP_FMT_LIB=ON
-          cmake --build build
-
-      - name: Run tests
-        run: ctest build
-
-  build-test-ubuntu-vulkan:
     name: Build & Test on Ubuntu 22.04 with Vulkan
     runs-on: ubuntu-22.04
 
@@ -52,7 +26,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y build-essential cmake g++ ninja-build mesa-vulkan-drivers vulkan-sdk
 
-      - name: Configure and build with Vulkan
+      - name: Configure and build
         run: |
           cmake . -B build -G Ninja \
             -D CMAKE_BUILD_TYPE=Release \
@@ -62,7 +36,8 @@ jobs:
           cmake --build build
 
       - name: Run tests
-        run: ctest build
+        working-directory: ./build
+        run: ctest --verbose
 
   build-test-windows:
     name: Build & Test on Windows (CPU only)
@@ -87,7 +62,8 @@ jobs:
         run: cmake --build build
 
       - name: Run tests
-        run: ctest build
+        working-directory: ./build
+        run: ctest --verbose
 
   build-test-macos:
     name: Build & Test on macOS (CPU only)
@@ -113,4 +89,5 @@ jobs:
           cmake --build build
 
       - name: Run tests
-        run: ctest build
+        working-directory: ./build
+        run: ctest --verbose
