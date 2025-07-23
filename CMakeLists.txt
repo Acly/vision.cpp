@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.28)
 
 project(vision.cpp VERSION 0.1.0 LANGUAGES CXX)
 
@@ -90,7 +90,7 @@ if(VISP_TESTS)
   add_subdirectory(models)
 endif()
 
-# Installation and packaging
+# Installation
 
 install(TARGETS visioncpp
   RUNTIME DESTINATION bin
@@ -100,6 +100,8 @@ install(DIRECTORY include/ DESTINATION include)
 if(PROJECT_IS_TOP_LEVEL)
   install(FILES README.md LICENSE DESTINATION .)
 endif()
+
+install(TARGETS vision-cli RUNTIME DESTINATION bin)
 
 include(CMakePackageConfigHelpers)
 
@@ -124,12 +126,19 @@ install(
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/visioncpp
 )
 
-# if(WIN32)
-#   set(CPACK_GENERATOR "ZIP")
-#   set(CPACK_PACKAGE_FILE_NAME visioncpp-windows-x64-${PROJECT_VERSION})
-# else()
-#   set(CPACK_GENERATOR "TGZ")
-#   set(CPACK_PACKAGE_FILE_NAME visioncpp-linux-x64-${PROJECT_VERSION})
-# endif()
-# set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
-# include(CPack)
+# Packaging
+
+if(PROJECT_IS_TOP_LEVEL)
+  if(WIN32)
+    set(CPACK_GENERATOR "ZIP")
+    set(CPACK_PACKAGE_FILE_NAME visioncpp-windows-x64-${PROJECT_VERSION})
+  elseif(APPLE)
+    set(CPACK_GENERATOR "TGZ")
+    set(CPACK_PACKAGE_FILE_NAME visioncpp-macos-x64-${PROJECT_VERSION})
+  else()
+    set(CPACK_GENERATOR "TGZ")
+    set(CPACK_PACKAGE_FILE_NAME visioncpp-linux-x64-${PROJECT_VERSION})
+  endif()
+  set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
+  include(CPack)
+endif()

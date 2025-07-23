@@ -3,7 +3,7 @@
 set_and_check(VISP_INCLUDE_DIR "@PACKAGE_VISP_INCLUDE_INSTALL_DIR@")
 set_and_check(VISP_LIB_DIR "@PACKAGE_VISP_LIB_INSTALL_DIR@")
 
-find_package(ggml REQUIRED)
+find_dependency(ggml)
 
 find_library(VISP_LIBRARY visioncpp REQUIRED HINTS ${VISP_LIB_DIR} NO_CMAKE_FIND_ROOT_PATH)
 
@@ -14,7 +14,6 @@ set_target_properties(visioncpp PROPERTIES
     INTERFACE_COMPILE_FEATURES cxx_std_20
     IMPORTED_LINK_INTERFACE_LANGUAGES "CXX"
     IMPORTED_LOCATION "${VISP_LIBRARY}"
-    POSITION_INDEPENDENT_CODE ON
 )
 
 check_required_components(visioncpp)

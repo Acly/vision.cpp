@@ -9,9 +9,14 @@ on:
       - main
 
 jobs:
-  build-test-ubuntu:
-    name: Build & Test on Ubuntu 22.04 with Vulkan
-    runs-on: ubuntu-22.04
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-14]
+
+    runs-on: ${{ matrix.os }}
+
+    name: Build & Test on ${{ matrix.os }}
 
     steps:
       - name: Checkout code
@@ -19,75 +24,62 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install dependencies
+      - name: Dependencies (Linux)
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
           sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
           sudo apt-get update -y
           sudo apt-get install -y build-essential cmake g++ ninja-build mesa-vulkan-drivers vulkan-sdk
 
-      - name: Configure and build
-        run: |
-          cmake . -B build -G Ninja \
-            -D CMAKE_BUILD_TYPE=Release \
-            -D VISP_CI=ON \
-            -D VISP_VULKAN=ON \
-            -D VISP_FMT_LIB=ON
-          cmake --build build
-
-      - name: Run tests
-        working-directory: ./build
-        run: ctest --verbose
-
-  build-test-windows:
-    name: Build & Test on Windows (CPU only)
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Setup MSVC
+      - name: Dependencies (Windows)
+        if: matrix.os == 'windows-latest'
         uses: microsoft/setup-msbuild@v2
 
-      - name: Configure
+      - name: Configure (Linux)
+        if: matrix.os == 'ubuntu-22.04'
+        run: >
+          cmake . -B build -G Ninja
+          -D CMAKE_BUILD_TYPE=Release
+          -D VISP_CI=ON
+          -D VISP_VULKAN=ON
+          -D VISP_FMT_LIB=ON
+
+      - name: Configure (Windows)
+        if: matrix.os == 'windows-latest'
         run: >
           cmake . -B build -A x64
           -D CMAKE_BUILD_TYPE=Release
           -D VISP_CI=ON
 
+      - name: Configure (MacOS)
+        if: matrix.os == 'macos-14'
+        run: >
+          cmake . -B build -G Ninja
+          -D CMAKE_BUILD_TYPE=Release
+          -D VISP_CI=ON
+          -D GGML_METAL=OFF
+          -D GGML_RPC=ON
+          -D CMAKE_BUILD_RPATH="@loader_path"
+
       - name: Build
         run: cmake --build build
 
-      - name: Run tests
+      - name: Test
         working-directory: ./build
         run: ctest --verbose
 
-  build-test-macos:
-    name: Build & Test on macOS (CPU only)
-    runs-on: macos-14
+      - name: Install
+        run: cmake --install build --prefix install
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Package
+        working-directory: ./build
+        run: cpack
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
         with:
-          submodules: recursive
-
-      - name: Install dependencies
-        run: brew install cmake
-
-      - name: Configure and build
-        run: |
-          cmake -G Ninja . -B build \
-            -D CMAKE_BUILD_TYPE=Release \
-            -D VISP_CI=ON \
-            -D GGML_METAL=OFF \
-            -D GGML_RPC=ON \
-            -D CMAKE_BUILD_RPATH="@loader_path"
-          cmake --build build
-
-      - name: Run tests
-        working-directory: ./build
-        run: ctest --verbose
+          name: visioncpp
+          path: |
+            ./build/*.tar.gz
+            ./build/*.zip

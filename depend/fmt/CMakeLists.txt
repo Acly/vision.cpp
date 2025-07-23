@@ -10,7 +10,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 FetchContent_Declare(
   fmt
   GIT_REPOSITORY https://github.com/fmtlib/fmt
-  GIT_TAG        40626af88bd7df9a5fb80be7b25ac85b122d6c21) # 11.2.0
+  GIT_TAG        40626af88bd7df9a5fb80be7b25ac85b122d6c21 # 11.2.0
+  EXCLUDE_FROM_ALL
+)
 FetchContent_MakeAvailable(fmt)
 
 set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_OLD})
