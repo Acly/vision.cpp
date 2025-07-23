@@ -187,7 +187,7 @@ image_data image_load(char const* filepath) {
         throw except("Failed to load image {}: {}", filepath, stbi_failure_reason());
     }
     image_format format = image_format_from_channels(channels);
-    return image_data(extent, format, std::unique_ptr<uint8_t[]>(pixels));
+    return image_data{extent, format, std::unique_ptr<uint8_t[]>(pixels)};
 }
 
 void image_save(image_view const& img, char const* filepath) {

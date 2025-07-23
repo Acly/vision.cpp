@@ -348,7 +348,7 @@ DEF(biref_decode)(model_ref m, span<tensor> input, param_dict const& p) {
 // MI-GAN
 
 DEF(migan_lrelu_agc)(model_ref m, span<tensor> input, param_dict const& p) {
-    return {migan::lrelu_agc(m, input[0], 0.2f, std::sqrtf(2), 1.0f)};
+    return {migan::lrelu_agc(m, input[0], 0.2f, std::sqrt(2), 1.0f)};
 }
 
 DEF(migan_downsample_2d)(model_ref m, span<tensor> input, param_dict const& p) {

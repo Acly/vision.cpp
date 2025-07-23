@@ -79,9 +79,9 @@ jobs:
 
       - name: Configure
         run: >
-          cmake . -B build -G Ninja -A x64
-            -D CMAKE_BUILD_TYPE=Release
-            -D VISP_CI=ON
+          cmake . -B build -A x64
+          -D CMAKE_BUILD_TYPE=Release
+          -D VISP_CI=ON
 
       - name: Build
         run: cmake --build build
