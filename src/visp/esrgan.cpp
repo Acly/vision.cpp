@@ -110,4 +110,9 @@ esrgan_params esrgan_detect_params(model_ref m) {
     return p;
 }
 
+int esrgan_estimate_graph_size(esrgan_params const& p) {
+    // worst-case estimate, exact number depends on how conv-2d is implemented for the backend
+    return 512 + p.n_blocks * 192;
+}
+
 } // namespace visp

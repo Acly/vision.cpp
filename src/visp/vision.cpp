@@ -171,7 +171,7 @@ image_data esrgan_compute(esrgan_model& model, image_view image) {
     tile_layout tiles(image.extent, esrgan_default_tile_size, 16);
     if (!model.graph || model.tile_size != tiles.tile_size) {
         model.tile_size = tiles.tile_size;
-        model.graph = compute_graph_init();
+        model.graph = compute_graph_init(esrgan_estimate_graph_size(model.params));
 
         model_ref m(model.weights, model.graph);
         i64x4 input_shape = {3, tiles.tile_size[0], tiles.tile_size[1], 1};

@@ -287,7 +287,7 @@ sam_prompt sam_parse_prompt(std::span<char const* const> args, i32x2 extent) {
 
 void run_sam(cli_args const& args) {
     backend_device backend = backend_init(args);
-    model_weights weights = load_model_weights(args, backend, "models/mobile-sam.gguf");
+    model_weights weights = load_model_weights(args, backend, "models/MobileSAM-F16.gguf");
     sam_params params{};
 
     require_inputs(args.inputs, 1, "<image>");
@@ -340,7 +340,7 @@ void run_sam(cli_args const& args) {
 
 void run_birefnet(cli_args const& args) {
     backend_device backend = backend_init(args);
-    model_weights weights = load_model_weights(args, backend, "models/birefnet.gguf", 6);
+    model_weights weights = load_model_weights(args, backend, "models/BiRefNet-F16.gguf", 6);
     birefnet_params params = birefnet_detect_params(weights);
     int img_size = params.image_size;
 
@@ -380,7 +380,7 @@ void run_birefnet(cli_args const& args) {
 
 void run_migan(cli_args const& args) {
     backend_device backend = backend_init(args);
-    model_weights weights = load_model_weights(args, backend, "models/migan_512_places2-f16.gguf");
+    model_weights weights = load_model_weights(args, backend, "models/MIGAN-512-places2-F16.gguf");
     migan_params params = migan_detect_params(weights);
     params.invert_mask = true; // -> inpaint opaque areas
 
@@ -417,7 +417,7 @@ void run_migan(cli_args const& args) {
 
 void run_esrgan(cli_args const& args) {
     backend_device backend = backend_init(args);
-    model_weights weights = load_model_weights(args, backend, "models/RealESRGAN_x4.gguf");
+    model_weights weights = load_model_weights(args, backend, "models/RealESRGAN-x4.gguf");
     esrgan_params params = esrgan_detect_params(weights);
 
     require_inputs(args.inputs, 1, "<image>");
@@ -430,7 +430,7 @@ void run_esrgan(cli_args const& args) {
     image_data output_tile = image_alloc(tiles_out.tile_size, image_format::rgb_f32);
     image_data output_image = image_alloc(image.extent * params.scale, image_format::rgb_f32);
 
-    compute_graph graph = compute_graph_init();
+    compute_graph graph = compute_graph_init(esrgan_estimate_graph_size(params));
     model_ref m(weights, graph);
 
     i64x4 input_shape = {3, tiles.tile_size[0], tiles.tile_size[1], 1};

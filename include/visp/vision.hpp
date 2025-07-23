@@ -206,6 +206,7 @@ struct esrgan_params {
 };
 
 VISP_API esrgan_params esrgan_detect_params(model_ref);
+VISP_API int esrgan_estimate_graph_size(esrgan_params const&);
 
 VISP_API tensor esrgan_generate(model_ref, tensor image, esrgan_params const&);
 
