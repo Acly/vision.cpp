@@ -63,14 +63,14 @@ jobs:
           -D CMAKE_BUILD_RPATH="@loader_path"
 
       - name: Build
-        run: cmake --build build
+        run: cmake --build build --config Release
 
       - name: Test
         working-directory: ./build
         run: ctest --verbose -C Release
 
       - name: Install
-        run: cmake --install build --prefix install
+        run: cmake --install build --prefix install --config Release
 
       - name: Package
         working-directory: ./build
