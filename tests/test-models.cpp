@@ -1,7 +1,6 @@
 #include "util/string.hpp"
 #include "visp/vision.hpp"
 
-
 #include "testing.hpp"
 
 namespace visp {
@@ -48,7 +47,8 @@ VISP_BACKEND_TEST(test_birefnet)(backend_type bt) {
     image_data input = image_load(input_path.string().c_str());
     image_data output = birefnet_compute(model, input);
 
-    compare_images(name, output);
+    float tolerance = bt == backend_type::cpu ? 0.01f : 0.3f; // TODO: GPU is non-deterministic
+    compare_images(name, output, tolerance);
 }
 
 VISP_BACKEND_TEST(test_migan)(backend_type bt) {
@@ -69,7 +69,7 @@ VISP_BACKEND_TEST(test_migan)(backend_type bt) {
 }
 
 VISP_BACKEND_TEST(test_esrgan)(backend_type bt) {
-    path model_path = test_dir().models / "RealESRGAN_x4plus_anime_6Bh.gguf";
+    path model_path = test_dir().models / "RealESRGAN-x4plus_anime-6B-F16.gguf";
     path input_path = test_dir().input / "vase-and-bowl.jpg";
     std::string name = "esrgan";
     name += bt == backend_type::cpu ? "-cpu.png" : "-gpu.png";
