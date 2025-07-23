@@ -65,7 +65,15 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
-      - name: Test
+      - name: Test Vulkan
+        if: matrix.os == 'ubuntu-22.04'
+        working-directory: ./build
+        run: |
+          export GGML_VK_VISIBLE_DEVICES=0
+          ctest --verbose
+
+      - name: Test CPU
+        if: matrix.os != 'ubuntu-22.04'
         working-directory: ./build
         run: ctest --verbose -C Release
 
@@ -77,10 +85,12 @@ jobs:
         run: cpack
 
       - name: Upload artifacts
+        if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
           name: visioncpp-${{ matrix.os }}
           path: |
             ./build/*.tar.gz
             ./build/*.zip
+            ./tests/results/*.png
           compression-level: 0
