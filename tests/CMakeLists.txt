@@ -23,9 +23,10 @@ target_include_directories(test-models PRIVATE . ../src)
 target_compile_options(test-models PRIVATE ${VISP_WARNINGS})
 target_compile_definitions(test-models PRIVATE ${VISP_ASSERT} ${VISP_FMT_DEFS})
 target_link_libraries(test-models PRIVATE visioncpp ${VISP_FMT_LINK})
-if(VISP_VULKAN)
+if(VISP_VULKAN AND NOT VISP_CI)
   add_test(NAME models COMMAND test-models -v)
 else()
+  # GPU tests currently don't pass on GitHub runners with Vulkan/llvmpipe
   add_test(NAME models COMMAND test-models -v --no-gpu)
 endif()
 

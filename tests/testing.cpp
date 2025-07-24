@@ -39,6 +39,9 @@ int main(int argc, char** argv) {
 
     auto run = [&](test_case const& test, char const* name, backend_type backend) {
         try {
+            if (!filter.empty() && name != filter && test.name != filter) {
+                return; // test not selected
+            }
             if (verbose) {
                 printf("%s", name);
                 fflush(stdout);
@@ -78,13 +81,10 @@ int main(int argc, char** argv) {
     fixed_string<128> name;
 
     for (auto& test : registry.tests) {
-        if (!filter.empty() && test.name != filter) {
-            continue;
-        }
         if (test.is_backend_test) {
-            run(test, format(name, "{}<cpu>", test.name), backend_type::cpu);
+            run(test, format(name, "{}[cpu]", test.name), backend_type::cpu);
             if (!exclude_gpu) {
-                run(test, format(name, "{}<gpu>", test.name), backend_type::gpu);
+                run(test, format(name, "{}[gpu]", test.name), backend_type::gpu);
             }
         } else {
             run(test, test.name, backend_type::cpu);
