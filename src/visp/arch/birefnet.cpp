@@ -16,6 +16,14 @@ tensor mlp(model_ref m, tensor x) {
     return named(m, x);
 }
 
+// Ensures that the tensor's data is not overwritten during computation.
+tensor make_constant(tensor x, tensor_name name) {
+    ggml_set_name(x, name.c_str());
+    ggml_set_input(x); // allocate at the beginning of the graph buffer
+    ggml_set_output(x); // don't reuse memory for computations
+    return x;
+}
+
 void compute_relative_position_index(span<int32_t> dst, int window_size) {
     int n = window_size;
     int n2 = n * n;
@@ -34,7 +42,7 @@ tensor_data create_relative_position_index(ggml_context* ctx, int window_size) {
     auto result = tensor_alloc(ggml_new_tensor_1d(ctx, GGML_TYPE_I32, n * n * n * n));
     auto name = format<tensor_name>("window_attention_{}.rel_pos_index", n);
     compute_relative_position_index(result.as_i32(), n);
-    ggml_set_name(result.x, name.c_str());
+    make_constant(result.x, name);
     return result;
 }
 
@@ -226,7 +234,7 @@ tensor_data create_attention_mask(ggml_context* ctx, int64_t w, int64_t h, int w
     auto result = tensor_alloc(ggml_new_tensor_3d(ctx, GGML_TYPE_F32, n * n, n * n, nw_x * nw_y));
     auto name = format<tensor_name>("swin_layer_{}x{}.attn_mask", w, h);
     compute_attention_mask(result.as_f32(), w, h, window_size);
-    ggml_set_name(result.x, name.c_str());
+    make_constant(result.x, name);
     return result;
 }
 
