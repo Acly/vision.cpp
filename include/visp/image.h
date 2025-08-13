@@ -101,7 +101,7 @@ struct image_data {
 VISP_API image_data image_alloc(i32x2 extent, image_format format);
 
 // Set all pixels to zero.
-void image_clear(image_span const&);
+VISP_API void image_clear(image_span const&);
 
 // Load image from file (PNG, JPEG, etc.)
 VISP_API image_data image_load(char const* filepath);
