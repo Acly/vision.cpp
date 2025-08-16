@@ -361,53 +361,72 @@ span<int32_t const> find_conv2d_weight_indices(model_file const& f) {
 } // namespace
 
 void model_transfer(
-    model_file const& file,
+    ggml_context* const& src_ctx,
     model_weights& weights,
     backend_device const& device,
     ggml_type float_type,
-    tensor_data_layout layout) {
+    tensor_data_layout src_layout,
+    tensor_data_layout dst_layout,
+    span<int32_t const> conv2d_weights) {
 
-    gguf_context* gguf = file.gguf.get();
-    ggml_context* src_ctx = file.data.get();
     ggml_context* dst_ctx = weights.context.get();
-
-    tensor_data_layout file_layout = file.tensor_layout();
-    bool to_cwhn = file_layout == tensor_data_layout::whcn && layout == tensor_data_layout::cwhn;
+    bool to_cwhn = src_layout == tensor_data_layout::whcn && dst_layout == tensor_data_layout::cwhn;
     tensor_converter convert(src_ctx, float_type, to_cwhn);
-    // Try to find a list of tensor indices which are weights of 2D operations
-    span<int32_t const> conv2d_weights = find_conv2d_weight_indices(file);
 
-    for (int64_t i = 0, conv2d_idx = 0; i < gguf_get_n_tensors(gguf); ++i) {
-        auto name = gguf_get_tensor_name(gguf, i);
-        tensor orig = ggml_get_tensor(src_ctx, name); // TODO: don't use name lookup
+    tensor orig = ggml_get_first_tensor(src_ctx);
+    for (int64_t i = 0, conv2d_idx = 0; orig;) {
+        if (strncmp(orig->name, "GGUF", 4) == 0) {
+            orig = ggml_get_next_tensor(src_ctx, orig); // skip "GGUF tensor data binary blob"
+            continue; // (why is there no way to iterate over GGUF tensors directly?)
+        }
         auto ne = nelements(orig);
         if (to_cwhn && conv2d_idx < ssize(conv2d_weights) && conv2d_weights[conv2d_idx] == i) {
             permute_whcn_to_cwhn(ne.data(), ne[2] == 1);
             ++conv2d_idx;
         }
         tensor dup = ggml_new_tensor(dst_ctx, convert.target_type(orig), GGML_MAX_DIMS, ne.data());
-        ggml_set_name(dup, name);
+        ggml_set_name(dup, ggml_get_name(orig));
+        orig = ggml_get_next_tensor(src_ctx, orig);
+        ++i;
     }
 
     ggml_backend_buffer_t buffer = ggml_backend_alloc_ctx_tensors(dst_ctx, device);
     weights.weights_buffer = ggml_backend_buffer_ptr(buffer);
     weights.buffer_type = device.type();
-    weights.flags = model_get_build_flags(file);
     if (to_cwhn) {
         weights.flags |= model_build_flag::cwhn;
     }
 
-    ggml_tensor* t = ggml_get_first_tensor(dst_ctx);
-    for (int i = 0, conv2d_idx = 0; t; ++i) {
-        tensor data_tensor = ggml_get_tensor(src_ctx, ggml_get_name(t));
+    tensor src = ggml_get_first_tensor(src_ctx);
+    tensor dst = ggml_get_first_tensor(dst_ctx);
+    for (int i = 0, conv2d_idx = 0; src && dst;) {
+        if (strncmp(src->name, "GGUF", 4) == 0) {
+            src = ggml_get_next_tensor(src_ctx, src);
+            continue; // skip "GGUF tensor data binary blob"
+        }
         bool is_2d = conv2d_idx < int(conv2d_weights.size()) && conv2d_weights[conv2d_idx] == i;
         if (is_2d) {
             ++conv2d_idx;
         }
-        void const* data = convert(data_tensor, t, is_2d && to_cwhn);
-        ggml_backend_tensor_set(t, data, 0, ggml_nbytes(t));
-        t = ggml_get_next_tensor(dst_ctx, t);
+        void const* data = convert(src, dst, is_2d && to_cwhn);
+        ggml_backend_tensor_set(dst, data, 0, ggml_nbytes(dst));
+        src = ggml_get_next_tensor(src_ctx, src);
+        dst = ggml_get_next_tensor(dst_ctx, dst);
+        ++i;
     }
+}
+
+void model_transfer(
+    model_file const& file,
+    model_weights& weights,
+    backend_device const& device,
+    ggml_type float_type,
+    tensor_data_layout layout) {
+
+    weights.flags = model_get_build_flags(file);
+    model_transfer(
+        file.data.get(), weights, device, float_type, file.tensor_layout(), layout,
+        find_conv2d_weight_indices(file));
 }
 
 ggml_type model_weights::float_type() const {

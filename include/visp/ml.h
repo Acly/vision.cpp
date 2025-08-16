@@ -128,6 +128,15 @@ VISP_API void model_transfer(
     ggml_type float_type = GGML_TYPE_COUNT,
     tensor_data_layout = tensor_data_layout::unknown);
 
+VISP_API void model_transfer(
+    ggml_context* const& src_ctx,
+    model_weights& weights,
+    backend_device const& device,
+    ggml_type float_type = GGML_TYPE_COUNT,
+    tensor_data_layout src_layout = tensor_data_layout::unknown,
+    tensor_data_layout dst_layout = tensor_data_layout::unknown,
+    span<int32_t const> conv2d_weights = {});
+
 //
 // Compute graph - wrapper for ggml_cgraph and its associated backend memory
 

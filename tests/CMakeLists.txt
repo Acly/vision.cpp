@@ -4,6 +4,7 @@ add_executable(test-vision)
 target_sources(test-vision PRIVATE
   testing.cpp
   test-image.cpp
+  test-ml.cpp
 )
 target_include_directories(test-vision PRIVATE . ../src)
 target_compile_definitions(test-vision PRIVATE ${VISP_ASSERT} ${VISP_DEFINITIONS})

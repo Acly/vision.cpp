@@ -18,6 +18,8 @@ std::string extra_info;
 int main(int argc, char** argv) {
     using namespace visp;
 
+    ggml_backend_load_all();
+
     auto& registry = test_registry_instance();
 
     int passed = 0;
@@ -81,6 +83,10 @@ int main(int argc, char** argv) {
             printf("%s %s\n", verbose ? "" : name, "\033[31mERROR\033[0m");
             printf("  \033[90m%s:%d:\033[0m Unhandled exception\n", test.file, test.line);
             printf("  \033[93m%s\033[0m\n", e.what());
+        } catch (...) {
+            ++errors;
+            printf("%s %s\n", verbose ? "" : name, "\033[31mERROR\033[0m");
+            printf("  \033[90m%s:%d:\033[0m Unhandled exception\n", test.file, test.line);
         }
         visp::extra_info.clear();
     };
