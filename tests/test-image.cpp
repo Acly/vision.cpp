@@ -252,6 +252,34 @@ VISP_TEST(image_blur) {
     CHECK_IMAGES_EQUAL(output, expected);
 }
 
+VISP_TEST(image_erosion) {
+    constexpr i32x2 extent{6, 6};
+    std::array<float, extent[0] * extent[1]> input_data = {
+        0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, //
+        0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, //
+        0.8f, 0.8f, 1.0f, 0.5f, 0.0f, 1.0f, //
+        0.8f, 0.8f, 1.0f, 0.5f, 0.5f, 0.0f, //
+        0.8f, 1.0f, 1.0f, 0.5f, 0.5f, 0.0f, //
+        0.0f, 1.0f, 1.0f, 0.2f, 0.5f, 0.0f  //
+    };
+    std::array<float, extent[0] * extent[1]> expected_data = {
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, //
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, //
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, //
+        0.8f, 0.8f, 0.5f, 0.0f, 0.0f, 0.0f, //
+        0.0f, 0.0f, 0.2f, 0.2f, 0.0f, 0.0f, //
+        0.0f, 0.0f, 0.2f, 0.2f, 0.0f, 0.0f  //
+    };
+    std::array<float, extent[0] * extent[1]> output_data{};
+
+    auto input = image_view(extent, input_data);
+    auto output = image_span(extent, output_data);
+    image_erosion(input, output, 1);
+
+    auto expected = image_view(extent, expected_data);
+    CHECK_IMAGES_EQUAL(output, expected);
+}
+
 VISP_TEST(tile_merge) {
     std::array<std::array<f32x3, 5 * 5>, 4> tiles;
     for (int t = 0; t < 4; ++t) {
