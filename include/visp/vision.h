@@ -150,9 +150,11 @@ struct birefnet_params {
 
 using birefnet_buffers = std::array<tensor_data, swin_params::n_layers + 2>;
 
-VISP_API birefnet_params birefnet_detect_params(model_file const&, i32x2 dynamic_extent = {});
+VISP_API birefnet_params birefnet_detect_params(
+    model_file const&, i32x2 dynamic_extent = {}, size_t max_alloc = SIZE_MAX);
 VISP_API birefnet_buffers birefnet_precompute(model_ref, birefnet_params const&);
-VISP_API i32x2 birefnet_image_extent(i32x2 input_extent, birefnet_params const&);
+VISP_API i32x2 birefnet_image_extent(
+    i32x2 input_extent, birefnet_params const&, size_t max_alloc = SIZE_MAX);
 
 VISP_API image_data birefnet_process_input(image_view, birefnet_params const&);
 VISP_API image_data birefnet_process_output(

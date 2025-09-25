@@ -108,6 +108,11 @@ size_t backend_device::total_memory() const {
     return total;
 }
 
+size_t backend_device::max_alloc() const {
+    const size_t vulkan_max = 4 * 1024 * 1024 * 1024ULL; // TODO: query from backend
+    return type() == backend_type::cpu ? SIZE_MAX : vulkan_max;
+}
+
 void backend_set_n_threads(backend_device& b, int n_threads) {
     if (b.type() != backend_type::cpu) {
         return;

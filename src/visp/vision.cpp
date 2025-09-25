@@ -90,7 +90,7 @@ birefnet_model birefnet_load_model(char const* filepath, backend_device const& d
 }
 
 image_data birefnet_compute(birefnet_model& model, image_view image) {
-    i32x2 res = birefnet_image_extent(image.extent, model.params);
+    i32x2 res = birefnet_image_extent(image.extent, model.params, model.backend->max_alloc());
     if (!model.graph || res != model.params.image_extent) {
         model.params.image_extent = res;
         model.graph = compute_graph_init(6 * 1024);

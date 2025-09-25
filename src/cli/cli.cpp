@@ -399,7 +399,7 @@ void run_birefnet(cli_args const& args) {
 
     require_inputs(args.inputs, 1, "<image>");
     image_data image = image_load(args.inputs[0]);
-    birefnet_params params = birefnet_detect_params(file, image.extent);
+    birefnet_params params = birefnet_detect_params(file, image.extent, backend.max_alloc());
     image_data input_data = birefnet_process_input(image, params);
 
     i32x2 extent = params.image_extent;

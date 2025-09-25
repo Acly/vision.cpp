@@ -19,7 +19,7 @@ tensor mlp(model_ref m, tensor x) {
 // Ensures that the tensor's data is not overwritten during computation.
 tensor make_constant(tensor x, tensor_name name) {
     ggml_set_name(x, name.c_str());
-    ggml_set_input(x); // allocate at the beginning of the graph buffer
+    ggml_set_input(x);  // allocate at the beginning of the graph buffer
     ggml_set_output(x); // don't reuse memory for computations
     return x;
 }
@@ -611,10 +611,18 @@ swin_params swin_detect_params(model_file const& f) {
     }
 }
 
-i32x2 birefnet_image_extent(i32x2 input_extent, birefnet_params const& p) {
+i32x2 birefnet_image_extent(i32x2 input_extent, birefnet_params const& p, size_t max_alloc) {
     i32x2 extent{p.image_size, p.image_size};
     if (p.image_size == -1) {
         ASSERT(input_extent[0] > 0 && input_extent[1] > 0);
+        // largest layer in BiRefNet-dynamic is input for 240-channel conv-2d at full resolution
+        size_t req_alloc = size_t(input_extent[0]) * input_extent[1] * 240ULL * sizeof(float);
+        if (req_alloc > max_alloc) {
+            float scale = std::sqrt(float(max_alloc) / float(req_alloc));
+            input_extent = {
+                std::max(1, int(input_extent[0] * scale) - p.image_multiple),
+                std::max(1, int(input_extent[1] * scale) - p.image_multiple)};
+        }
         extent = {
             next_multiple(input_extent[0], p.image_multiple),
             next_multiple(input_extent[1], p.image_multiple)};
@@ -622,14 +630,16 @@ i32x2 birefnet_image_extent(i32x2 input_extent, birefnet_params const& p) {
     return extent;
 }
 
-birefnet_params birefnet_detect_params(model_file const& f, i32x2 dynamic_extent) {
+birefnet_params birefnet_detect_params(
+    model_file const& f, i32x2 dynamic_extent, size_t max_alloc) {
+
     if (std::string_view arch = f.arch(); arch != "birefnet") {
         throw except("Architecture expected to be 'birefnet', but was '{}' ({})", arch, f.path);
     }
     birefnet_params p;
     p.image_size = f.get_int("birefnet.image_size");
     p.image_multiple = f.get_int("birefnet.image_multiple");
-    p.image_extent = birefnet_image_extent(dynamic_extent, p);
+    p.image_extent = birefnet_image_extent(dynamic_extent, p, max_alloc);
     p.encoder = swin_detect_params(f);
     return p;
 }

@@ -42,6 +42,7 @@ struct backend_device {
     VISP_API ggml_type preferred_float_type() const;
     VISP_API tensor_data_layout preferred_layout() const;
     VISP_API size_t total_memory() const;
+    VISP_API size_t max_alloc() const;
 
     operator ggml_backend_t() const { return handle.get(); }
 };
