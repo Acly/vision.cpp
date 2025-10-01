@@ -16,9 +16,7 @@ def test_linear():
     assert torch.allclose(result, expected)
 
 
-@pytest.mark.parametrize(
-    "scenario", ["stride_1_pad_0", "stride_2_pad_1", "dilation_2_pad_2"]
-)
+@pytest.mark.parametrize("scenario", ["stride_1_pad_0", "stride_2_pad_1", "dilation_2_pad_2"])
 @pytest.mark.parametrize("memory_layout", ["nchw", "nhwc"])
 @pytest.mark.parametrize("batch", ["single", "batch"])
 @pytest.mark.parametrize("backend", ["cpu", "vulkan"])
@@ -128,9 +126,7 @@ def test_window_partition(backend: str):
     nW = pW // win
     # window partition
     expected = (
-        expected.view(B, nH, win, nW, win, C)
-        .transpose(2, 3)
-        .reshape(B * nH * nW, win * win, C)
+        expected.view(B, nH, win, nW, win, C).transpose(2, 3).reshape(B * nH * nW, win * win, C)
     )
 
     result = workbench.invoke_test("sam_window_partition", x, {}, backend=backend)
@@ -149,4 +145,24 @@ def test_roll(shift: tuple[int, int, int, int], backend: str):
     params = dict(s0=shift[3], s1=shift[2], s2=shift[1], s3=shift[0])
     result = workbench.invoke_test("roll", x, {}, params, backend)
 
+    assert torch.allclose(result, expected)
+
+
+@pytest.mark.parametrize("mode", ["bilinear", "bicubic"])
+@pytest.mark.parametrize("align_corners", [True, False])
+@pytest.mark.parametrize("size", ["small", "large"])
+@pytest.mark.parametrize("scale", [0.6, 2.0])
+def test_interpolate(mode: str, align_corners: bool, size: str, scale: float):
+    b, c, h, w = {
+        "small": (1, 3, 2, 3),
+        "large": (4, 19, 20, 30),
+    }[size]
+    target = (round(h * scale), round(w * scale))
+    x = torch.arange(b * c * h * w).reshape(b, c, h, w).float()
+    expected = torch.nn.functional.interpolate(
+        x, size=target, mode=mode, align_corners=align_corners
+    )
+
+    params = dict(mode=mode, h=target[0], w=target[1], align_corners=1 if align_corners else 0)
+    result = workbench.invoke_test("interpolate", x, {}, params)
     assert torch.allclose(result, expected)

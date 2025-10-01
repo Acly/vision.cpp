@@ -116,6 +116,17 @@ DEF(linear)(model_ref m, span<tensor> input, param_dict const& p) {
     return {linear(m, input[0])};
 }
 
+DEF(interpolate)(model_ref m, span<tensor> input, param_dict const& p) {
+    int w = p.get("w", 8);
+    int h = p.get("h", 8);
+    uint32_t mode = p.get("mode", "bilinear") == "bilinear"sv ? GGML_SCALE_MODE_BILINEAR
+                                                              : GGML_SCALE_MODE_BICUBIC;
+    if (p.get("align_corners", 0)) {
+        mode |= GGML_SCALE_FLAG_ALIGN_CORNERS;
+    }
+    return {ggml_interpolate(m, input[0], w, h, input[0]->ne[2], input[0]->ne[3], mode)};
+}
+
 //
 // Mobile SAM
 
