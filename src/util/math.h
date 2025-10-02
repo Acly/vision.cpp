@@ -59,5 +59,9 @@ constexpr i32x2 div_ceil(i32x2 a, i32x2 b) { return {div_ceil(a[0], b[0]), div_c
 constexpr i32x2 div_ceil(i32x2 a, int32_t b) { return div_ceil(a, i32x2{b, b}); }
 constexpr i32x2 min(i32x2 a, i32x2 b) { return {std::min(a[0], b[0]), std::min(a[1], b[1])}; }
 
+// i64x2 operations
+constexpr i64x2 operator*(i64x2 a, int64_t b) { return {a[0] * b, a[1] * b}; }
+constexpr i64x2 operator/(i64x2 a, int64_t b) { return {a[0] / b, a[1] / b}; }
+
 // clang-format on
 } // namespace visp

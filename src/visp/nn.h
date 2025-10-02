@@ -38,4 +38,7 @@ tensor conv_2d_deform(
 tensor conv_transpose_2d(model_ref m, tensor x, int stride);
 tensor batch_norm_2d(model_ref, tensor x);
 
+// 2D image to patch embedding using convolution and optional norm. CWHN input and output.
+tensor patch_embed(model_ref, tensor x, int patch_size);
+
 } // namespace visp

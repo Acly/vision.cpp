@@ -6,7 +6,6 @@
 #include <array>
 
 namespace visp {
-
 namespace birefnet {
 
 // SWIN Transformer
@@ -37,7 +36,6 @@ tensor_data create_attention_mask(ggml_context* ctx, int64_t w, int64_t h, int w
 
 tensor mlp(model_ref m, tensor x);
 tensor patch_merging(model_ref m, tensor x, int64_t w, int64_t h);
-tensor patch_embed(model_ref m, tensor x, int patch_size = 4);
 tensor window_partition(model_ref m, tensor x, int window);
 tensor window_reverse(model_ref m, tensor x, int w, int h, int window);
 tensor window_attention(model_ref m, tensor x, tensor mask, int num_heads, int window);

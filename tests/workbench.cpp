@@ -1,5 +1,7 @@
 #include "util/string.h"
 #include "visp/arch/birefnet.h"
+#include "visp/arch/depth-anything.h"
+#include "visp/arch/dino.h"
 #include "visp/arch/esrgan.h"
 #include "visp/arch/migan.h"
 #include "visp/arch/mobile-sam.h"
@@ -240,7 +242,7 @@ DEF(sam_predict_masks)(model_ref m, span<tensor> input, param_dict const& p) {
 // BiRefNet
 
 DEF(biref_patch_embed)(model_ref m, span<tensor> input, param_dict const& p) {
-    return {birefnet::patch_embed(m, input[0])};
+    return {patch_embed(m, input[0], 4)};
 }
 
 DEF(biref_relative_position_index)(model_ref m, span<tensor> input, param_dict const& p) {
@@ -414,6 +416,33 @@ DEF(esrgan_rrdbnet)(model_ref m, span<tensor> input, param_dict const& p) {
 }
 
 //
+// DINO
+
+DEF(dino_interpolate_pos_encoding)(model_ref m, span<tensor> input, param_dict const& p) {
+    int s = p.get("img_size", 64);
+    int patch_size = p.get("patch_size", 16);
+    return {dino::interpolate_pos_encoding(m, input[0], s, s, patch_size)};
+}
+
+DEF(dino_prepare_tokens)(model_ref m, span<tensor> input, param_dict const& p) {
+    return {dino::prepare_tokens(m, input[0], 4)};
+}
+
+DEF(dino_attention)(model_ref m, span<tensor> input, param_dict const& p) {
+    return {dino::attention(m, input[0], p.get("n_heads", 8), p.get("flash_attn", 0) != 0)};
+}
+
+DEF(dino_block)(model_ref m, span<tensor> input, param_dict const& p) {
+    dino::dino_params params{};
+    params.n_heads = p.get("n_heads", 8);
+    params.flash_attention = p.get("flash_attn", 0) != 0;
+    return {dino::block(m, input[0], params)};
+}
+
+//
+// Depth Anything
+
+//
 // Workbench implementation
 //
 
@@ -430,19 +459,19 @@ param_dict build_dict(span<raw_param const> raw_params) {
         param.name = raw.name;
 
         switch (param_type(raw.type)) {
-        case param_type::int32:
-            param.type = param_type::int32;
-            param.value.i = std::stoi(raw.value);
-            break;
-        case param_type::float32:
-            param.type = param_type::float32;
-            param.value.f = std::stof(raw.value);
-            break;
-        case param_type::string:
-            param.type = param_type::string;
-            param.value.s = raw.value;
-            break;
-        default: throw except("Unknown parameter type");
+            case param_type::int32:
+                param.type = param_type::int32;
+                param.value.i = std::stoi(raw.value);
+                break;
+            case param_type::float32:
+                param.type = param_type::float32;
+                param.value.f = std::stof(raw.value);
+                break;
+            case param_type::string:
+                param.type = param_type::string;
+                param.value.s = raw.value;
+                break;
+            default: throw except("Unknown parameter type");
         }
         dict.params.push_back(param);
     }
@@ -489,7 +518,6 @@ struct raw_tensor {
     size_t size() const { return ne[0] * ne[1] * ne[2] * ne[3]; }
     size_t size_bytes() const { return size() * ggml_type_size(type()); }
 };
-
 
 struct test_case {
     char const* name;
@@ -605,7 +633,8 @@ extern "C" {
 #ifdef _MSC_VER
 __declspec(dllexport)
 #endif
-int32_t visp_workbench(
+int32_t
+visp_workbench(
     char const* testcase,
     visp::raw_tensor const* inputs,
     int32_t n_inputs,

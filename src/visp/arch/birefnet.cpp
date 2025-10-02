@@ -261,18 +261,6 @@ swin_layer_result swin_layer(
     return {x, w, h, x, w, h};
 }
 
-tensor patch_embed(model_ref m, tensor x, int patch_size) {
-    ASSERT(x->ne[1] % patch_size == 0 && x->ne[2] % patch_size == 0);
-
-    m.flags |= model_build_flag::cwhn;
-    x = conv_2d(m["proj"], x, patch_size);
-    auto [c, ww, wh, b] = nelements(x);
-    x = ggml_reshape_3d(m, x, c, ww * wh, b);
-    x = layer_norm(m["norm"], x);
-    x = ggml_reshape_4d(m, x, c, ww, wh, b);
-    return named(m, x);
-}
-
 swin_result swin_transformer(model_ref m, tensor x, swin_params const& p) {
     x = patch_embed(m["patch_embed"], x, 4);
 

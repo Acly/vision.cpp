@@ -174,4 +174,19 @@ tensor batch_norm_2d(model_ref m, tensor x) {
     return named(m, x);
 }
 
+tensor patch_embed(model_ref m, tensor x, int patch_size) {
+    ASSERT(x->ne[1] % patch_size == 0 && x->ne[2] % patch_size == 0);
+
+    m.flags |= model_build_flag::cwhn;
+    x = conv_2d(m["proj"], x, patch_size);
+
+    if (m.find("norm.weight")) {
+        auto [c, w, h, b] = nelements(x);
+        x = ggml_reshape_3d(m, x, c, w * h, b);
+        x = layer_norm(m["norm"], x);
+        x = ggml_reshape_4d(m, x, c, w, h, b);
+    }
+    return named(m, x);
+}
+
 } // namespace visp
