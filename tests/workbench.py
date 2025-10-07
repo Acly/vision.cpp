@@ -112,7 +112,7 @@ def invoke_test(
     backend: str = "cpu",
 ):
     input = input if isinstance(input, list) else [input]
-    raw_inputs = [torch_to_raw_tensor("", tensor) for tensor in input]
+    raw_inputs = [torch_to_raw_tensor(f"input{i}", tensor) for i, tensor in enumerate(input)]
     raw_inputs += [torch_to_raw_tensor(name, tensor) for name, tensor in state.items()]
     input_tensors = [t for _, t in raw_inputs]
     input_tensors  # keep the tensors alive

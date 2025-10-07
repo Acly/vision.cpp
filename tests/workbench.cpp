@@ -433,7 +433,7 @@ DEF(dino_attention)(model_ref m, span<tensor> input, param_dict const& p) {
 }
 
 DEF(dino_block)(model_ref m, span<tensor> input, param_dict const& p) {
-    dino::dino_params params{};
+    dino_params params{};
     params.n_heads = p.get("n_heads", 8);
     params.flash_attention = p.get("flash_attn", 0) != 0;
     return {dino::block(m, input[0], params)};
@@ -441,6 +441,22 @@ DEF(dino_block)(model_ref m, span<tensor> input, param_dict const& p) {
 
 //
 // Depth Anything
+
+DEF(depthany_feature_fusion)(model_ref m, span<tensor> input, param_dict const& p) {
+    if (input.size() == 1) {
+        int64_t size[] = {8, 8, 6, 1};
+        return {dpt::feature_fusion(m, input[0], nullptr, size)};
+    } else {
+        ASSERT(input.size() == 2);
+        return {dpt::feature_fusion(m, input[0], input[1])};
+    }
+}
+
+DEF(depthany_head)(model_ref m, span<tensor> input, param_dict const& p) {
+    int patch_w = p.get("patch_w", 8);
+    int patch_h = p.get("patch_h", 8);
+    return {dpt::head(m, input, patch_w, patch_h)};
+}
 
 //
 // Workbench implementation
@@ -572,9 +588,8 @@ void workbench_run(
     for (raw_tensor const& raw : tensors) {
         auto tensor = ggml_new_tensor_4d(
             m.weights_context, raw.type(), raw.ne[0], raw.ne[1], raw.ne[2], raw.ne[3]);
-        if (raw.name && raw.name[0] != '\0' && raw.name != std::string_view("input")) {
-            ggml_set_name(tensor, raw.name);
-        } else {
+        ggml_set_name(tensor, raw.name);
+        if (std::string_view(raw.name).starts_with("input")) {
             inputs.push_back(tensor);
         }
     }
