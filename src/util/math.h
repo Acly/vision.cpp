@@ -57,6 +57,7 @@ constexpr i32x2 operator/(i32x2 a, int32_t b) { return {a[0] / b, a[1] / b}; }
 
 constexpr i32x2 div_ceil(i32x2 a, i32x2 b) { return {div_ceil(a[0], b[0]), div_ceil(a[1], b[1])}; }
 constexpr i32x2 div_ceil(i32x2 a, int32_t b) { return div_ceil(a, i32x2{b, b}); }
+constexpr i32x2 next_multiple(i32x2 x, int32_t mult) { return div_ceil(x, mult) * mult; }
 constexpr i32x2 min(i32x2 a, i32x2 b) { return {std::min(a[0], b[0]), std::min(a[1], b[1])}; }
 
 // i64x2 operations

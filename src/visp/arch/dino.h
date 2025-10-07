@@ -10,6 +10,16 @@
 #pragma optimize("", off)
 
 namespace visp {
+
+struct dino_params {
+    int patch_size = 16;
+    int embed_dim = 384;
+    int n_blocks = 12;
+    int n_heads = 6;
+    int mlp_ratio = 4;
+    bool flash_attention = false;
+};
+
 namespace dino {
 
 inline tensor interpolate_pos_encoding(
@@ -113,15 +123,6 @@ inline tensor attention(model_ref m, tensor x, int n_heads, bool flash_attn) {
     return named(m, x);
 }
 
-struct dino_params {
-    int patch_size = 16;
-    int embed_dim = 384;
-    int n_blocks = 12;
-    int n_heads = 6;
-    int mlp_ratio = 4;
-    bool flash_attention = false;
-};
-
 inline tensor block(model_ref m, tensor x, dino_params const& p) {
     tensor attn = x;
     attn = layer_norm(m["norm1"], attn);
@@ -138,21 +139,34 @@ inline tensor block(model_ref m, tensor x, dino_params const& p) {
     return named(m, x);
 }
 
+template <typename T>
+bool contains(std::span<const T> r, T const& value) {
+    return std::find(r.begin(), r.end(), value) != r.end();
+}
+
 inline std::vector<tensor> get_intermediate_layers(
-    model_ref m, tensor x, int n, dino_params const& p) {
-        
+    model_ref m, tensor x, std::span<const int> layers, dino_params const& p) {
+
     x = prepare_tokens(m, x, p.patch_size);
 
     std::vector<tensor> outputs;
     model_ref blocks = m["blocks"];
     for (int i = 0; i < p.n_blocks; ++i) {
         x = block(blocks[i], x, p);
-        if (i >= p.n_blocks - n) {
-            outputs.push_back(x);
+
+        if (contains(layers, i)) {
+            tensor out = layer_norm(m["norm"], x);
+            outputs.push_back(out);
         }
     }
     return outputs;
 }
 
 } // namespace dino
+
+inline std::vector<tensor> dino_intermediate_layers(
+    model_ref m, tensor x, std::span<const int> layers, dino_params const& p) {
+    return dino::get_intermediate_layers(m, x, layers, p);
+}
+
 } // namespace visp
