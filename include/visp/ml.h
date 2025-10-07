@@ -296,6 +296,19 @@ extern swin_params const swin_l_params;
 VISP_API swin_params swin_detect_params(model_file const&);
 
 //
+// DINO
+
+struct dino_params {
+    int patch_size = 16;
+    int embed_dim = 384;
+    int n_blocks = 12;
+    int n_heads = 6;
+    int mlp_ratio = 4;
+    bool flash_attention = false;
+};
+
+
+//
 // implementation
 
 constexpr model_build_flags operator|(model_build_flag lhs, model_build_flag rhs) {

@@ -100,7 +100,7 @@ def is_conv_2d(name: str, tensor: Tensor):
     return (
         tensor.ndim == 4
         and tensor.shape[2] == tensor.shape[3]
-        and tensor.shape[2] in (1, 3, 4, 7)
+        and tensor.shape[2] in (1, 3, 4, 7, 14)
         and name.endswith("weight")
     )
 
@@ -342,6 +342,28 @@ def convert_birefnet(input_filepath: Path, writer: Writer):
 
 
 #
+# Depth-Anything
+
+
+def convert_depth_anything(input_filepath: Path, writer: Writer):
+    writer.add_license("apache-2.0")
+    writer.set_tensor_layout_default(TensorLayout.nchw)
+
+    model: dict[str, Tensor] = torch.load(input_filepath, map_location="cpu", weights_only=True)
+
+    for key, tensor in model.items():
+        name = key
+
+        if is_conv_2d(name, tensor):
+            if "patch_embed" in name or "projects" in name:
+                tensor = conv_2d_to_nhwc(tensor)
+            else:
+                tensor = writer.convert_tensor_2d(tensor)
+
+        writer.add_tensor(name, tensor)
+
+
+#
 # MI-GAN
 
 
@@ -400,6 +422,7 @@ def convert_esrgan(input_filepath: Path, writer: Writer):
 arch_names = {
     "sam": "mobile-sam",
     "birefnet": "birefnet",
+    "depth-anything": "depth-anything",
     "migan": "migan",
     "esrgan": "esrgan",
 }
@@ -448,6 +471,8 @@ if __name__ == "__main__":
                 convert_sam(input_path, writer)
             case "birefnet":
                 convert_birefnet(input_path, writer)
+            case "depthany" | "depth-anything":
+                convert_depth_anything(input_path, writer)
             case "migan":
                 convert_migan(input_path, writer)
             case "esrgan":

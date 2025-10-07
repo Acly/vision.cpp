@@ -161,6 +161,27 @@ VISP_API image_data birefnet_process_output(
 VISP_API tensor birefnet_predict(model_ref, tensor image, birefnet_params const&);
 
 //
+// Depth Anything - depth estimation
+
+struct depthany_model;
+
+VISP_API depthany_model depthany_load_model(char const* filepath, backend_device const&);
+VISP_API image_data depthany_compute(depthany_model&, image_view image);
+
+// --- Depth Anything pipeline
+
+struct depthany_params {
+    int image_size = 518;
+    int image_multiple = 14;
+    i32x2 image_extent = {518, 518};
+    std::array<int, 4> feature_layers = {2, 5, 8, 11};
+    dino_params dino;
+};
+
+VISP_API depthany_params depthany_detect_params(model_file const&, i32x2 input_extent = {});
+
+
+//
 // MI-GAN - image inpainting
 
 struct migan_model;
@@ -238,6 +259,17 @@ struct birefnet_model {
     backend_device const* backend = nullptr;
     model_weights weights;
     birefnet_params params;
+
+    compute_graph graph;
+    tensor input = nullptr;
+    tensor output = nullptr;
+};
+
+// internal
+struct depthany_model {
+    backend_device const* backend = nullptr;
+    model_weights weights;
+    depthany_params params;
 
     compute_graph graph;
     tensor input = nullptr;

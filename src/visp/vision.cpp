@@ -116,6 +116,41 @@ image_data birefnet_compute(birefnet_model& model, image_view image) {
 }
 
 //
+// Depth Anything
+
+depthany_model depthany_load_model(char const* filepath, backend_device const& dev) {
+    depthany_model model;
+    model.backend = &dev;
+    model_file file = model_load(filepath);
+    model.weights = model_init(file.n_tensors());
+    model_transfer(file, model.weights, dev, dev.preferred_float_type(), dev.preferred_layout());
+    return model;
+}
+
+image_data depthany_compute(depthany_model& model, image_view image) {
+    depthany_params params{};
+    i32x2 res = depthany_image_extent(image.extent, params);
+
+    if (!model.graph || res != model.params.image_extent) {
+        model.params.image_extent = res;
+        model.graph = compute_graph_init();
+
+        model_ref m(model.weights, model.graph);
+        model.input = compute_graph_input(m, GGML_TYPE_F32, {3, res[0], res[1], 1});
+        model.output = depthany_predict(m, model.input, params);
+        compute_graph_allocate(model.graph, *model.backend);
+    }
+
+    image_data img_data = depthany_process_input(image, params);
+    transfer_to_backend(model.input, img_data);
+
+    compute(model.graph, *model.backend);
+
+    tensor_data output_data = transfer_from_backend(model.output);
+    return depthany_process_output(output_data.as_f32(), image.extent, params);
+}
+
+//
 // MI-GAN
 
 migan_model migan_load_model(char const* filepath, backend_device const& dev) {

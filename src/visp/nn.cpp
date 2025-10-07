@@ -3,7 +3,6 @@
 
 namespace visp {
 
-
 tensor linear(model_ref m, tensor x) {
     x = ggml_mul_mat(m, m.weights("weight"), x);
     if (tensor bias = m.find("bias")) {

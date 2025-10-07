@@ -10,16 +10,6 @@
 #pragma optimize("", off)
 
 namespace visp {
-
-struct dino_params {
-    int patch_size = 16;
-    int embed_dim = 384;
-    int n_blocks = 12;
-    int n_heads = 6;
-    int mlp_ratio = 4;
-    bool flash_attention = false;
-};
-
 namespace dino {
 
 inline tensor interpolate_pos_encoding(
@@ -96,8 +86,8 @@ inline tensor attention(model_ref m, tensor x, int n_heads, bool flash_attn) {
     tensor v = split(qkv, 2, !flash_attn);
 
     if (flash_attn) {
-        int64_t c_pad = GGML_PAD(c, 4) - c;
-        int64_t n_pad = GGML_PAD(n, 32) - n;
+        int c_pad = int(GGML_PAD(c, 4) - c);
+        int n_pad = int(GGML_PAD(n, 32) - n);
         q = ggml_pad(m, q, c_pad, n_pad, 0, 0);
         k = ggml_pad(m, k, c_pad, n_pad, 0, 0);
         v = ggml_pad(m, v, c_pad, n_pad, 0, 0);

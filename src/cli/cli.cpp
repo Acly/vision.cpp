@@ -2,6 +2,8 @@
 #include "util/string.h"
 #include "visp/vision.h"
 
+#include "visp/arch/depth-anything.h"
+
 #include <algorithm>
 #include <charconv>
 #include <cstdio>
@@ -13,7 +15,7 @@
 namespace visp {
 using std::filesystem::path;
 
-enum class cli_command { none, sam, birefnet, migan, esrgan };
+enum class cli_command { none, sam, birefnet, depth_anything, migan, esrgan };
 
 struct cli_args {
     cli_command command = cli_command::none;
@@ -38,6 +40,7 @@ Usage: vision-cli <command> [options]
 Commands:
     sam       - MobileSAM image segmentation
     birefnet  - BirefNet background removal
+    depthany  - Depth-Anything depth estimation
     migan     - MI-GAN inpainting
     esrgan    - ESRGAN/Real-ESRGAN upscaling
 
@@ -119,6 +122,8 @@ cli_args cli_parse(int argc, char** argv) {
         r.command = cli_command::sam;
     } else if (arg1 == "birefnet") {
         r.command = cli_command::birefnet;
+    } else if (arg1 == "depthany" || arg1 == "depth-anything") {
+        r.command = cli_command::depth_anything;
     } else if (arg1 == "migan") {
         r.command = cli_command::migan;
     } else if (arg1 == "esrgan") {
@@ -162,6 +167,7 @@ cli_args cli_parse(int argc, char** argv) {
 
 void run_sam(cli_args const&);
 void run_birefnet(cli_args const&);
+void run_depth_anything(cli_args const&);
 void run_migan(cli_args const&);
 void run_esrgan(cli_args const&);
 
@@ -179,6 +185,7 @@ int main(int argc, char** argv) {
         switch (args.command) {
             case cli_command::sam: run_sam(args); break;
             case cli_command::birefnet: run_birefnet(args); break;
+            case cli_command::depth_anything: run_depth_anything(args); break;
             case cli_command::migan: run_migan(args); break;
             case cli_command::esrgan: run_esrgan(args); break;
             case cli_command::none: break;
@@ -430,6 +437,40 @@ void run_birefnet(cli_args const& args) {
     printf("-> mask saved to %s\n", args.output);
 
     composite_image_with_mask(image, mask_resized, args.composite);
+}
+
+//
+// Depth Anything
+
+void run_depth_anything(cli_args const& args) {
+    backend_device backend = backend_init(args);
+    auto [file, weights] = load_model_weights(
+        args, backend, "models/DepthAnythingV2-Small-F32.gguf");
+
+    require_inputs(args.inputs, 1, "<image>");
+    image_data image = image_load(args.inputs[0]);
+    depthany_params params = depthany_detect_params(file, image.extent);
+    image_data input_data = depthany_process_input(image, params);
+
+    i32x2 extent = params.image_extent;
+    printf("- model image size: %d\n", params.image_size);
+    printf("- inference image size: %dx%d\n", params.image_extent[0], params.image_extent[1]);
+
+    compute_graph graph = compute_graph_init();
+    model_ref m(weights, graph);
+
+    tensor input = compute_graph_input(m, GGML_TYPE_F32, {3, extent[0], extent[1], 1});
+    tensor output = depthany_predict(m, input, params);
+
+    compute_graph_allocate(graph, backend);
+    transfer_to_backend(input, input_data);
+
+    compute_timed(graph, backend);
+
+    tensor_data output_data = transfer_from_backend(output);
+    image_data depth_image = depthany_process_output(output_data.as_f32(), image.extent, params);
+    image_save(depth_image, args.output);
+    printf("-> depth image saved to %s\n", args.output);
 }
 
 //
