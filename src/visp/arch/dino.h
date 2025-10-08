@@ -38,14 +38,24 @@ inline tensor interpolate_pos_encoding(
 
 inline tensor prepare_tokens(model_ref m, tensor x, int patch_size) {
     auto [c, w, h, n] = nelements(x);
-    x = patch_embed(m["patch_embed"], x, patch_size);
+    // x = patch_embed(m["patch_embed"], x, patch_size);
+    model_ref pe = m["patch_embed"];
+    // pe.flags |= model_build_flag::cwhn;
+    x = cwhn_to_contiguous_2d(m, x);
+    x = conv_2d(pe["proj"], x, patch_size);
+    x = contiguous_2d_to_cwhn(m, x);
+
     x = ggml_reshape_3d(m, x, x->ne[0], x->ne[1] * x->ne[2], x->ne[3]);
+
+    compute_graph_output(m, ggml_scale(m, x, 1.0f), "pos_embed");
 
     tensor cls_token = m.weights("cls_token");
     if (cls_token->ne[2] != n) {
         cls_token = ggml_repeat_4d(m, cls_token, cls_token->ne[0], 1, n, 1);
     }
     x = concat(m, {cls_token, x}, 1);
+
+    compute_graph_output(m, ggml_scale(m, x, 1.0f), "pos_embed_cat");
 
     tensor pos_enc = interpolate_pos_encoding(m, x, w, h, patch_size);
     x = ggml_add_inplace(m, x, pos_enc);
@@ -115,13 +125,13 @@ inline tensor attention(model_ref m, tensor x, int n_heads, bool flash_attn) {
 
 inline tensor block(model_ref m, tensor x, dino_params const& p) {
     tensor attn = x;
-    attn = layer_norm(m["norm1"], attn);
+    attn = layer_norm(m["norm1"], attn, 1e-6f);
     attn = attention(m["attn"], attn, p.n_heads, p.flash_attention);
     attn = layer_scale(m["ls1"], attn);
     x = ggml_add_inplace(m, x, attn);
 
     tensor ffn = x;
-    ffn = layer_norm(m["norm2"], ffn);
+    ffn = layer_norm(m["norm2"], ffn, 1e-6f);
     ffn = mlp(m["mlp"], ffn);
     ffn = layer_scale(m["ls2"], ffn);
     x = ggml_add_inplace(m, x, ffn);
@@ -139,13 +149,19 @@ inline std::vector<tensor> get_intermediate_layers(
 
     x = prepare_tokens(m, x, p.patch_size);
 
+    compute_graph_output(m, ggml_scale(m, x, 1.0f), "tokens");
+
     std::vector<tensor> outputs;
     model_ref blocks = m["blocks"];
     for (int i = 0; i < p.n_blocks; ++i) {
         x = block(blocks[i], x, p);
 
+        if (i == 1) {
+            compute_graph_output(m, ggml_scale(m, x, 1.0f), "block1");
+        }
+
         if (contains(layers, i)) {
-            tensor out = layer_norm(m["norm"], x);
+            tensor out = layer_norm(m["norm"], x, 1e-6f);
             outputs.push_back(out);
         }
     }
@@ -154,7 +170,7 @@ inline std::vector<tensor> get_intermediate_layers(
 
 } // namespace dino
 
-inline std::vector<tensor> dino_intermediate_layers(
+inline std::vector<tensor> dino_get_intermediate_layers(
     model_ref m, tensor x, std::span<const int> layers, dino_params const& p) {
     return dino::get_intermediate_layers(m, x, layers, p);
 }

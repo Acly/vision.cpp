@@ -180,6 +180,7 @@ tensor patch_embed(model_ref m, tensor x, int patch_size) {
     x = conv_2d(m["proj"], x, patch_size);
 
     if (m.find("norm.weight")) {
+        ASSERT(false, "Layer norm after patch embed not supported");
         auto [c, w, h, b] = nelements(x);
         x = ggml_reshape_3d(m, x, c, w * h, b);
         x = layer_norm(m["norm"], x);

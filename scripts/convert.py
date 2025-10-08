@@ -355,7 +355,8 @@ def convert_depth_anything(input_filepath: Path, writer: Writer):
         name = key
 
         if is_conv_2d(name, tensor):
-            if "patch_embed" in name or "projects" in name:
+            # if "patch_embed" in name or "projects" in name:
+            if "projects" in name:
                 tensor = conv_2d_to_nhwc(tensor)
             else:
                 tensor = writer.convert_tensor_2d(tensor)

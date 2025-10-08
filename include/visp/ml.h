@@ -224,6 +224,7 @@ VISP_API tensor_data tensor_alloc(tensor x);
 
 // Loads tensor data from a file storing raw numbers as binary.
 VISP_API tensor_data tensor_load(tensor x, char const* filepath);
+VISP_API void tensor_save(tensor x, char const* filepath);
 
 // Copies data to the tensor's backend buffer (which should already be allocated).
 VISP_API void transfer_to_backend(tensor_data const&);

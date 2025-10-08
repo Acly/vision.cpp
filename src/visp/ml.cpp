@@ -572,6 +572,18 @@ tensor_data tensor_load(tensor x, char const* filepath) {
     return result;
 }
 
+void tensor_save(tensor x, char const* filepath) {
+    FILE* file = fopen(filepath, "wb");
+    if (!file) {
+        throw except("Failed to open file for writing: {}", filepath);
+    }
+    size_t written = fwrite(x->data, 1, ggml_nbytes(x), file);
+    fclose(file);
+    if (written != ggml_nbytes(x)) {
+        throw except("Failed to write tensor data to file: {}", filepath);
+    }
+}
+
 std::span<float> tensor_data::as_f32() {
     ASSERT(x->type == GGML_TYPE_F32);
     return span(reinterpret_cast<float*>(data.get()), ggml_nelements(x));

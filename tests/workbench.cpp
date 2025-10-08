@@ -439,6 +439,17 @@ DEF(dino_block)(model_ref m, span<tensor> input, param_dict const& p) {
     return {dino::block(m, input[0], params)};
 }
 
+DEF(dino_intermediate_layers)(model_ref m, span<tensor> input, param_dict const& p) {
+    dino_params params{};
+    params.patch_size = 4;
+    params.embed_dim = 6;
+    params.n_blocks = 4;
+    params.n_heads = 3;
+    params.flash_attention = p.get("flash_attn", 0) != 0;
+    auto layers = std::array{0, 1, 2, 3};
+    return dino::get_intermediate_layers(m, input[0], layers, params);
+}
+
 //
 // Depth Anything
 

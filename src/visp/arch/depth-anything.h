@@ -1,9 +1,10 @@
 #pragma once
 
 #include "visp/arch/dino.h"
-#include "visp/vision.h"
 #include "visp/ml.h"
 #include "visp/nn.h"
+#include "visp/vision.h"
+
 
 namespace visp {
 namespace dpt {
@@ -77,6 +78,9 @@ tensor head(model_ref m, span<tensor> features, int64_t patch_w, int64_t patch_h
     out = ggml_relu_inplace(m, out);
     out = conv_2d(output_conv2[2], out);
     out = ggml_relu_inplace(m, out);
+
+    out = ggml_sigmoid(m, out);
+
     return out;
 }
 
@@ -87,7 +91,12 @@ inline tensor depthany_predict(model_ref m, tensor image, depthany_params const&
     int64_t w_patch = w / p.dino.patch_size;
     int64_t h_patch = h / p.dino.patch_size;
 
-    auto features = dino_intermediate_layers(m["pretrained"], image, p.feature_layers, p.dino);
+    auto features = dino_get_intermediate_layers(m["pretrained"], image, p.feature_layers, p.dino);
+
+    for (int i = 0; i < features.size(); ++i) {
+        compute_graph_output(m, ggml_scale(m, features[i], 1.0f), std::format("feature{}", i).c_str());
+    }
+
     tensor depth = dpt::head(m["depth_head"], features, w_patch, h_patch);
     depth = ggml_relu_inplace(m, depth);
     return compute_graph_output(m, depth);

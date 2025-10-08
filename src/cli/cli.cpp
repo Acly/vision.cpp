@@ -12,6 +12,8 @@
 #include <string_view>
 #include <vector>
 
+#pragma optimize("", off)
+
 namespace visp {
 using std::filesystem::path;
 

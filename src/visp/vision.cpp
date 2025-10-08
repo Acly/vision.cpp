@@ -2,6 +2,8 @@
 #include "util/math.h"
 #include "util/string.h"
 
+#include "visp/arch/depth-anything.h"
+
 namespace visp {
 
 //
