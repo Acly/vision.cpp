@@ -262,9 +262,13 @@ std::tuple<model_file, model_weights> load_model_weights(
         preferred_layout = file.tensor_layout();
     }
     model_transfer(file, weights, dev, dev.preferred_float_type(), preferred_layout);
-
     printf("done (%s)\n", t.elapsed_str());
-    printf("- float type: %s\n", ggml_type_name(weights.float_type()));
+
+    ggml_type ftype = file.float_type();
+    if (ftype == GGML_TYPE_COUNT) {
+        ftype = weights.float_type();
+    }
+    printf("- float type: %s\n", ggml_type_name(ftype));
     if (preferred_layout != tensor_data_layout::unknown) {
         printf("- tensor layout: %s\n", to_string(preferred_layout));
     }

@@ -227,6 +227,15 @@ std::string_view model_file::arch() const {
     return get_string("general.architecture");
 }
 
+ggml_type model_file::float_type() const {
+    if (int64_t key_id = gguf_find_key(gguf.get(), "general.file_type"); key_id != -1) {
+        if (gguf_get_kv_type(gguf.get(), key_id) == GGUF_TYPE_UINT32) {
+            return (ggml_type)gguf_get_val_u32(gguf.get(), key_id);
+        }
+    }
+    return GGML_TYPE_COUNT;
+}
+
 tensor_data_layout model_file::tensor_layout() const {
     fixed_string<64> str;
     int64_t key = gguf_find_key(gguf.get(), format(str, "{}.tensor_data_layout", arch()));

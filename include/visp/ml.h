@@ -83,6 +83,7 @@ struct model_file {
 
     VISP_API int64_t n_tensors() const;
     VISP_API std::string_view arch() const;
+    VISP_API ggml_type float_type() const;
     VISP_API tensor_data_layout tensor_layout() const;
 
     VISP_API int64_t key(char const* name) const;
