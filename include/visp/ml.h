@@ -29,7 +29,14 @@ enum tensor_data_layout { unknown, whcn, cwhn };
 //
 // Backend device - represents the compute hardware
 
-enum class backend_type { cpu = 1, gpu = 2 };
+enum class backend_type {
+    cpu = 1,
+    gpu = 2,
+    vulkan = gpu | 1 << 8,
+};
+
+constexpr bool operator&(backend_type a, backend_type b);
+VISP_API std::string_view to_string(backend_type);
 
 // True if the backend library is loaded and has at least one supported device.
 VISP_API bool backend_is_available(backend_type);
@@ -282,6 +289,10 @@ VISP_API tensor interpolate(model_ref const&, tensor x, i64x2 target, int32_t mo
 
 //
 // implementation
+
+constexpr bool operator&(backend_type a, backend_type b) {
+    return (int(a) & int(b)) != 0;
+}
 
 constexpr model_build_flags operator|(model_build_flag lhs, model_build_flag rhs) {
     return model_build_flags(uint32_t(lhs) | uint32_t(rhs));

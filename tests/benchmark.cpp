@@ -33,7 +33,7 @@ bench_timings run_benchmark(
     int iterations,
     std::vector<input_transfer> const& transfers = {}) {
 
-    if (backend.type() == backend_type::gpu) {
+    if (backend.type() & backend_type::gpu) {
         iterations *= 4;
     }
 
@@ -139,10 +139,12 @@ backend_device initialize_backend(std::string_view backend_type) {
         backend_device cpu = backend_init(backend_type::cpu);
         backend_set_n_threads(cpu, (int)std::thread::hardware_concurrency());
         return cpu;
+    } else if (backend_type == "vulkan") {
+        return backend_init(backend_type::vulkan);
     } else if (backend_type == "gpu") {
         return backend_init(backend_type::gpu);
     } else {
-        throw std::invalid_argument("Invalid backend type. Use 'cpu' or 'gpu'.");
+        throw std::invalid_argument("Invalid backend type. Use 'cpu', 'gpu' or 'vulkan'.");
     }
 }
 
@@ -159,7 +161,7 @@ bench_result benchmark_model(
     bench_result result;
     result.arch = arch;
     result.model = model;
-    result.backend = backend.type() == backend_type::cpu ? "cpu" : "gpu";
+    result.backend = to_string(backend.type());
 
     auto select_model = [&](std::string_view model, std::string_view fallback) {
         if (model.empty()) {

@@ -5,6 +5,13 @@
 
 namespace visp {
 
+VISP_TEST(backend_available) {
+    CHECK(backend_is_available(backend_type::cpu));
+    if (backend_is_available(backend_type::gpu)) {
+        CHECK(backend_is_available(backend_type::vulkan));
+    }
+}
+
 VISP_TEST(model_transfer_type_conversion) {
     model_weights src = model_init(2);
 

@@ -12,6 +12,15 @@ namespace visp {
 //
 // backend
 
+std::string_view to_string(backend_type type) {
+    switch (type) {
+        case backend_type::cpu: return "cpu";
+        case backend_type::gpu: return "gpu";
+        case backend_type::vulkan: return "vulkan";
+        default: return "unknown";
+    }
+}
+
 bool load_ggml_backends() {
     static const bool loaded = []() {
         if (ggml_backend_reg_count() > 0) {
@@ -37,6 +46,10 @@ bool backend_is_available(backend_type type) {
         case backend_type::gpu:
             return ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_GPU) != nullptr ||
                 ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_IGPU) != nullptr;
+        case backend_type::vulkan: {
+            ggml_backend_reg_t reg = ggml_backend_reg_by_name("Vulkan");
+            return reg && ggml_backend_reg_dev_count(reg) > 0;
+        }
         default: ASSERT(false, "Invalid backend type");
     }
     return false;
@@ -60,6 +73,7 @@ backend_device backend_init(backend_type type) {
             b.handle.reset(ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr));
             break;
         case backend_type::gpu:
+        case backend_type::vulkan:
             b.handle.reset(ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_GPU, nullptr));
             if (!b.handle) {
                 b.handle.reset(ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_IGPU, nullptr));
@@ -82,7 +96,13 @@ backend_type backend_device::type() const {
     switch (ggml_backend_dev_type(dev)) {
         case GGML_BACKEND_DEVICE_TYPE_CPU: return backend_type::cpu;
         case GGML_BACKEND_DEVICE_TYPE_GPU:
-        case GGML_BACKEND_DEVICE_TYPE_IGPU: return backend_type::gpu;
+        case GGML_BACKEND_DEVICE_TYPE_IGPU: {
+            std::string_view dev_name = ggml_backend_dev_name(dev);
+            if (dev_name.find("Vulkan") != std::string_view::npos) {
+                return backend_type::vulkan;
+            }
+            return backend_type::gpu;
+        }
         default: ASSERT(false, "Unsupported backend device type"); return backend_type::cpu;
     }
 }
@@ -90,7 +110,7 @@ backend_type backend_device::type() const {
 typedef bool (*ggml_backend_dev_supports_f16_t)(ggml_backend_dev_t);
 
 ggml_type backend_device::preferred_float_type() const {
-    if (type() == backend_type::cpu) {
+    if (type() & backend_type::cpu) {
         return GGML_TYPE_F32; // not all operations support F16
     } else {
         ggml_backend_reg_t reg = ggml_backend_dev_backend_reg(device);
@@ -105,7 +125,7 @@ ggml_type backend_device::preferred_float_type() const {
 }
 
 tensor_data_layout backend_device::preferred_layout() const {
-    if (type() == backend_type::cpu) {
+    if (type() & backend_type::cpu) {
         return tensor_data_layout::cwhn;
     }
     return tensor_data_layout::unknown; // no preference, keep model weight layout
@@ -120,7 +140,10 @@ size_t backend_device::total_memory() const {
 
 size_t backend_device::max_alloc() const {
     const size_t vulkan_max = 4 * 1024 * 1024 * 1024ULL; // TODO: query from backend
-    return type() == backend_type::cpu ? SIZE_MAX : vulkan_max;
+    switch (type()) {
+        case backend_type::vulkan: return vulkan_max;
+        default: return SIZE_MAX;
+    }
 }
 
 void backend_set_n_threads(backend_device& b, int n_threads) {
@@ -154,7 +177,8 @@ model_build_flags backend_default_flags(backend_type type) {
         case backend_type::cpu:
             return conv_2d_direct_cwhn | concat_n | f16_conv_transpose | window_partition |
                 flash_attn_flag(false);
-        case backend_type::gpu: return flash_attn_flag(true);
+        case backend_type::gpu:
+        case backend_type::vulkan: return flash_attn_flag(true);
     }
     return {};
 }
