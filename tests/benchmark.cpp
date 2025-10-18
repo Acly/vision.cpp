@@ -12,11 +12,36 @@
 #include <thread>
 #include <vector>
 
-using namespace visp;
+namespace visp {
+using clock = std::chrono::high_resolution_clock;
+using duration_ms = std::chrono::duration<double, std::milli>;
+
+char const* usage = R"(
+Usage: vision-bench [-m <model1>] [-m <model2> ...] [options]
+
+Run benchmarks on one or more vision models and print results as table.
+If no model is specified, benchmarks all supported models.
+
+Options:
+    -m, --model <arch>       Model architecture (sam, birefnet, depthany, ...)
+    -m, --model <arch:file>  Specific model file, eg. "birefnet:BiRefNet-F16.gguf"
+    -b, --backend <cpu|gpu>  Backend type (default: all backends)
+    --timeout <seconds>      Benchmark timeout in seconds (default: 10)
+    --min-iterations <n>     Minimum benchmark iterations (default: 4)
+    --max-iterations <n>     Maximum benchmark iterations (default: 100)
+)";
+
+struct bench_args {
+    duration_ms timeout = duration_ms(10000);
+    int min_iterations = 4;
+    int max_iterations = 100;
+};
 
 struct bench_timings {
-    double mean = 0.0;
-    double stdev = 0.0;
+    duration_ms total;
+    duration_ms mean;
+    duration_ms stdev;
+    int iterations = 0;
 };
 
 struct input_transfer {
@@ -30,38 +55,42 @@ struct input_transfer {
 bench_timings run_benchmark(
     compute_graph& graph,
     backend_device& backend,
-    int iterations,
+    bench_args const& args,
     std::vector<input_transfer> const& transfers = {}) {
 
-    if (backend.type() & backend_type::gpu) {
-        iterations *= 4;
-    }
-
     std::vector<double> timings;
-    timings.reserve(iterations);
+    timings.reserve(args.max_iterations);
 
     compute(graph, backend); // Warm-up
 
-    for (int i = 0; i < iterations; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
+    auto start = clock::now();
+    int i = 0;
+    for (i = 0; i < args.max_iterations; ++i) {
+        auto start_iteration = clock::now();
 
         for (const auto& transfer : transfers) {
             transfer_to_backend(transfer.x, transfer.data);
         }
         compute(graph, backend);
 
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> elapsed = end - start;
+        auto end = clock::now();
+        duration_ms elapsed = end - start_iteration;
         timings.push_back(elapsed.count());
+
+        if (i >= args.min_iterations && (end - start) >= args.timeout) {
+            i++; // loop counter -> total runs
+            break;
+        }
     }
 
+    duration_ms total = clock::now() - start;
     double mean = std::accumulate(timings.begin(), timings.end(), 0.0) / timings.size();
     double sq_sum = std::inner_product(timings.begin(), timings.end(), timings.begin(), 0.0);
     double stdev = std::sqrt(sq_sum / timings.size() - mean * mean);
-    return {mean, stdev};
+    return {total, duration_ms(mean), duration_ms(stdev), i};
 }
 
-bench_timings benchmark_sam(path model_path, backend_device& backend) {
+bench_timings benchmark_sam(path model_path, backend_device& backend, bench_args const& args) {
     path input_path = test_dir().input / "cat-and-hat.jpg";
 
     sam_model model = sam_load_model(model_path.string().c_str(), backend);
@@ -70,19 +99,21 @@ bench_timings benchmark_sam(path model_path, backend_device& backend) {
 
     sam_encode(model, image_view(input));
     bench_timings encoder_timings = run_benchmark(
-        model.encoder, backend, 16, {{model.input_image, input_data}});
+        model.encoder, backend, args, {{model.input_image, input_data}});
 
     sam_compute(model, i32x2{200, 300});
-    bench_timings decoder_timings = run_benchmark(model.decoder, backend, 50);
+    bench_timings decoder_timings = run_benchmark(model.decoder, backend, args);
 
     return {
-        encoder_timings.mean + decoder_timings.mean,
-        std::sqrt(
-            encoder_timings.stdev * encoder_timings.stdev +
-            decoder_timings.stdev * decoder_timings.stdev)};
+        encoder_timings.total + decoder_timings.total, encoder_timings.mean + decoder_timings.mean,
+        duration_ms(
+            std::sqrt(
+                encoder_timings.stdev.count() * encoder_timings.stdev.count() +
+                decoder_timings.stdev.count() * decoder_timings.stdev.count())),
+        encoder_timings.iterations};
 }
 
-bench_timings benchmark_birefnet(path model_path, backend_device& backend) {
+bench_timings benchmark_birefnet(path model_path, backend_device& backend, bench_args const& args) {
     path input_path = test_dir().input / "wardrobe.jpg";
 
     birefnet_model model = birefnet_load_model(model_path.string().c_str(), backend);
@@ -90,10 +121,11 @@ bench_timings benchmark_birefnet(path model_path, backend_device& backend) {
     image_data input_data = birefnet_process_input(input, model.params);
 
     birefnet_compute(model, input);
-    return run_benchmark(model.graph, backend, 8, {{model.input, input_data}});
+    return run_benchmark(model.graph, backend, args, {{model.input, input_data}});
 }
 
-bench_timings benchmark_depth_anything(path model_path, backend_device& backend) {
+bench_timings benchmark_depth_anything(
+    path model_path, backend_device& backend, bench_args const& args) {
     path input_path = test_dir().input / "wardrobe.jpg";
 
     depthany_model model = depthany_load_model(model_path.string().c_str(), backend);
@@ -101,10 +133,10 @@ bench_timings benchmark_depth_anything(path model_path, backend_device& backend)
     depthany_compute(model, input);
 
     image_data input_data = depthany_process_input(input, model.params);
-    return run_benchmark(model.graph, backend, 12, {{model.input, input_data}});
+    return run_benchmark(model.graph, backend, args, {{model.input, input_data}});
 }
 
-bench_timings benchmark_migan(path model_path, backend_device& backend) {
+bench_timings benchmark_migan(path model_path, backend_device& backend, bench_args const& args) {
     path image_path = test_dir().input / "bench-image.jpg";
     path mask_path = test_dir().input / "bench-mask.png";
 
@@ -114,10 +146,10 @@ bench_timings benchmark_migan(path model_path, backend_device& backend) {
     image_data input_data = migan_process_input(image, mask, model.params);
 
     migan_compute(model, image, mask);
-    return run_benchmark(model.graph, backend, 32, {{model.input, input_data}});
+    return run_benchmark(model.graph, backend, args, {{model.input, input_data}});
 }
 
-bench_timings benchmark_esrgan(path model_path, backend_device& backend) {
+bench_timings benchmark_esrgan(path model_path, backend_device& backend, bench_args const& args) {
     path input_path = test_dir().input / "vase-and-bowl.jpg";
 
     esrgan_model model = esrgan_load_model(model_path.string().c_str(), backend);
@@ -131,7 +163,7 @@ bench_timings benchmark_esrgan(path model_path, backend_device& backend) {
     model.output = esrgan_generate(m, model.input, model.params);
 
     compute_graph_allocate(graph, backend);
-    return run_benchmark(graph, backend, 8, {{model.input, input_data}});
+    return run_benchmark(graph, backend, args, {{model.input, input_data}});
 }
 
 backend_device initialize_backend(std::string_view backend_type) {
@@ -156,7 +188,10 @@ struct bench_result {
 };
 
 bench_result benchmark_model(
-    std::string_view arch, std::string_view model, backend_device& backend) {
+    std::string_view arch,
+    std::string_view model,
+    backend_device& backend,
+    bench_args const& args) {
 
     bench_result result;
     result.arch = arch;
@@ -179,23 +214,23 @@ bench_result benchmark_model(
 
     if (arch == "sam") {
         path model_path = select_model(model, "MobileSAM-F16.gguf");
-        result.time = benchmark_sam(model_path, backend);
+        result.time = benchmark_sam(model_path, backend, args);
 
     } else if (arch == "birefnet") {
         path model_path = select_model(model, "BiRefNet-lite-F16.gguf");
-        result.time = benchmark_birefnet(model_path, backend);
+        result.time = benchmark_birefnet(model_path, backend, args);
 
     } else if (arch == "depthany") {
         path model_path = select_model(model, "Depth-Anything-V2-Small-F16.gguf");
-        result.time = benchmark_depth_anything(model_path, backend);
+        result.time = benchmark_depth_anything(model_path, backend, args);
 
     } else if (arch == "migan") {
         path model_path = select_model(model, "MIGAN-512-places2-F16.gguf");
-        result.time = benchmark_migan(model_path, backend);
+        result.time = benchmark_migan(model_path, backend, args);
 
     } else if (arch == "esrgan") {
         path model_path = select_model(model, "RealESRGAN-x4plus_anime-6B-F16.gguf");
-        result.time = benchmark_esrgan(model_path, backend);
+        result.time = benchmark_esrgan(model_path, backend, args);
 
     } else {
         fprintf(stderr, "Unknown model architecture: %s\n", arch.data());
@@ -215,15 +250,22 @@ void print(fixed_string<128> const& str) {
     printf("%s", str.c_str());
 }
 
+} // namespace visp
+
 int main(int argc, char** argv) {
+    using namespace visp;
     std::vector<std::pair<std::string_view, std::string_view>> models;
     std::vector<std::string_view> backends;
+    bench_args args;
 
     try {
 
         for (int i = 1; i < argc; ++i) {
             std::string_view arg(argv[i]);
-            if (arg == "-m" || arg == "--model") {
+            if (arg == "-h" || arg == "--help") {
+                printf("%s", usage);
+                return 0;
+            } else if (arg == "-m" || arg == "--model") {
                 std::string_view text = next_arg(argc, argv, i);
                 auto p = text.find(':');
                 if (p == std::string_view::npos) {
@@ -235,6 +277,12 @@ int main(int argc, char** argv) {
                 }
             } else if (arg == "-b" || arg == "--backend") {
                 backends.push_back(next_arg(argc, argv, i));
+            } else if (arg == "--timeout") {
+                args.timeout = duration_ms(std::stod(next_arg(argc, argv, i)) * 1000);
+            } else if (arg == "--min-iterations") {
+                args.min_iterations = std::stoi(next_arg(argc, argv, i));
+            } else if (arg == "--max-iterations") {
+                args.max_iterations = std::stoi(next_arg(argc, argv, i));
             } else {
                 throw std::invalid_argument("Unknown argument: " + std::string(arg));
             }
@@ -264,22 +312,29 @@ int main(int argc, char** argv) {
             backend_device backend_device = initialize_backend(backend);
             for (auto&& model : models) {
                 print(format(
-                    line, "[{: <2}/{: <2}] Running {} on {}...\n", ++i, n_tests, model.first,
+                    line, "[{: <2}/{: <2}] Running {} on {}...", ++i, n_tests, model.first,
                     backend));
 
-                results.push_back(benchmark_model(model.first, model.second, backend_device));
+                bench_result result = benchmark_model(
+                    model.first, model.second, backend_device, args);
+
+                print(format(
+                    line, " finished {} runs in {:.1f} s\n", result.time.iterations,
+                    result.time.total.count() / 1000.0));
+                results.push_back(result);
             }
         }
 
         printf("\n");
         print(format(
-            line, "| {: <10} | {: <30} | {: <6} | {: >11} | {: >6} |\n", "Arch", "Model", "Device", "Avg", "Dev"));
+            line, "| {: <10} | {: <30} | {: <6} | {: >11} | {: >6} |\n", "Arch", "Model", "Device",
+            "Avg", "Dev"));
         printf("|:-----------|:-------------------------------|:-------|------------:|-------:|\n");
         for (const auto& result : results) {
             auto model = result.model.substr(std::max(int(result.model.length()) - 30, 0));
             print(format(
                 line, "| {: <10} | {: <30} | {: <6} | {:8.1f} ms | {:6.1f} |\n", result.arch, model,
-                result.backend, result.time.mean, result.time.stdev));
+                result.backend, result.time.mean.count(), result.time.stdev.count()));
         }
         printf("\n");
     } catch (const std::exception& e) {
