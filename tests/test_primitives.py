@@ -150,11 +150,12 @@ def test_roll(shift: tuple[int, int, int, int], backend: str):
 
 @pytest.mark.parametrize("mode", ["bilinear", "bicubic"])
 @pytest.mark.parametrize("align_corners", [True, False])
-@pytest.mark.parametrize("size", ["small", "large"])
+@pytest.mark.parametrize("size", ["one", "small", "large"])
 @pytest.mark.parametrize("scale", [0.6, 2.0])
 @pytest.mark.parametrize("backend", ["cpu", "vulkan"])
 def test_interpolate(mode: str, align_corners: bool, size: str, scale: float, backend: str):
     b, c, h, w = {
+        "one": (1, 2, 1, 3),
         "small": (1, 3, 2, 3),
         "large": (4, 19, 20, 30),
     }[size]
