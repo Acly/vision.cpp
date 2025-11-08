@@ -359,6 +359,16 @@ struct tensor_converter {
             dst_type = src_type;
         }
 
+        backend.reset(ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr));
+        if (!backend && whcn_to_cwhn) {
+            // cpu instruction set not supported, but we must do layout conversion
+            throw except("Cannot use CPU for tensor conversion: hardware not supported");
+        } else if (!backend) {
+            // don't convert, hope the backend can deal with the model as-is (might be slow)
+            dst_type = GGML_TYPE_COUNT;
+            return;
+        }
+
         ggml_init_params ctx_params{
             .mem_size = ggml_tensor_overhead() + ggml_graph_overhead(),
             .mem_buffer = nullptr,
@@ -380,8 +390,6 @@ struct tensor_converter {
 
         gallocr.reset(ggml_gallocr_new(ggml_backend_cpu_buffer_type()));
         ggml_gallocr_reserve(gallocr.get(), graph);
-
-        backend.reset(ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr));
     }
 
     ggml_type target_type(ggml_tensor const* t) const {
