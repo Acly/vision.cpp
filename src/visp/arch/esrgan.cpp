@@ -86,7 +86,7 @@ esrgan_params esrgan_detect_params(model_file const& f) {
     p.scale = f.get_int("esrgan.scale");
     p.n_blocks = f.get_int("esrgan.block_count");
     
-    if (p.scale < 2 || p.scale > 4) {
+    if (p.scale < 1 || p.scale > 8) {
         throw except("ESRGAN: unsupported scale: {}", p.scale);
     }
     if (p.n_blocks < 1 || p.n_blocks > 23) {
