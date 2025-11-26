@@ -331,7 +331,8 @@ int main(int argc, char** argv) {
             "Avg", "Dev"));
         printf("|:-----------|:-------------------------------|:-------|------------:|-------:|\n");
         for (const auto& result : results) {
-            auto model = result.model.substr(std::max(int(result.model.length()) - 30, 0));
+            auto model = result.model.substr(std::max(int(result.model.length()) - 35, 0));
+            model = model.substr(0, model.find_last_of('.'));
             print(format(
                 line, "| {: <10} | {: <30} | {: <6} | {:8.1f} ms | {:6.1f} |\n", result.arch, model,
                 result.backend, result.time.mean.count(), result.time.stdev.count()));
