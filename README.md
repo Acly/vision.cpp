@@ -151,7 +151,7 @@ cd vision.cpp
 
 **Configure and build**
 ```sh
-cmake . -B build -D CMAKE_BUILD_TYPE=Release
+cmake . -B build
 cmake --build build --config Release
 ```
 
@@ -160,7 +160,7 @@ cmake --build build --config Release
 Building with Vulkan GPU support requires the [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/) to be installed.
 
 ```sh
-cmake . -B build -D CMAKE_BUILD_TYPE=Release -D VISP_VULKAN=ON
+cmake . -B build -D VISP_VULKAN=ON
 ```
 
 ### Tests _(Optional)_

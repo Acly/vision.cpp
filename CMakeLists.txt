@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(vision.cpp VERSION 0.2.0 LANGUAGES CXX)
 
+option(BUILD_SHARED_LIBS "Build shared libraries instead of static libraries" ON)
 option(VISP_VULKAN "Enable Vulkan support" OFF)
 option(VISP_DEV "Enable development mode" OFF)
 option(VISP_CI "Enable for continuous integration environment" OFF)
@@ -14,6 +15,12 @@ if(PROJECT_IS_TOP_LEVEL)
   set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+endif()
+
+# Set default build type to Release (except for multi-config generators)
+if (NOT XCODE AND NOT MSVC AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
 # Configure assertions

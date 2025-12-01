@@ -1,4 +1,4 @@
-add_library(visioncpp SHARED)
+add_library(visioncpp)
 
 target_sources(visioncpp PRIVATE
   arch/birefnet.cpp

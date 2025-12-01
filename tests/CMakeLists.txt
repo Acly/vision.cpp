@@ -38,7 +38,7 @@ include(reference-images.cmake)
 #
 # Workbench library for Python tests
 
-add_library(vision-workbench workbench.cpp)
+add_library(vision-workbench SHARED workbench.cpp)
 target_include_directories(vision-workbench PRIVATE ../src)
 target_compile_definitions(vision-workbench PRIVATE ${VISP_ASSERT} ${VISP_DEFINITIONS})
 target_compile_options(vision-workbench PRIVATE ${VISP_COMP_OPTIONS})
