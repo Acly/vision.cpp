@@ -228,10 +228,11 @@ class SwinTransformerBlock(nn.Module):
             drop=drop,
         )
 
-        self.H = None
-        self.W = None
+        self.H: int | None = None
+        self.W: int | None = None
 
     def forward(self, x, mask_matrix):
+        assert self.W is not None and self.H is not None, "W and H must be set before forward"
         B, L, C = x.shape
         H, W = self.H, self.W
         assert L == H * W, "input feature has wrong size"
@@ -297,7 +298,7 @@ def test_swin_block():
 
     x = input_tensor(1, 36, 8)
     mask = torch.zeros(2, 9, 9).masked_fill(torch.rand(2, 9, 9) > 0.5, -100.0)
-    state["mask"] = mask
+    state["mask"] = mask.half()
     swin_block.W, swin_block.H = 6, 6
     expected = swin_block(x, None)
 
@@ -421,7 +422,7 @@ class BasicLayer(nn.Module):
         mask_windows = window_partition(img_mask, self.window_size)
         mask_windows = mask_windows.view(-1, self.window_size * self.window_size)
         attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
-        attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0))
+        attn_mask = attn_mask.masked_fill(attn_mask != 0, float("-inf"))
         attn_mask = attn_mask.masked_fill(attn_mask == 0, float(0.0))
         return attn_mask
 
@@ -453,7 +454,7 @@ class BasicLayer(nn.Module):
         mask_windows = mask_windows.view(-1, self.window_size * self.window_size)
         attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
         attn_mask = (
-            attn_mask.masked_fill(attn_mask != 0, float(-100.0))
+            attn_mask.masked_fill(attn_mask != 0, float("-inf"))
             .masked_fill(attn_mask == 0, float(0.0))
             .to(x.dtype)
         )
@@ -475,8 +476,8 @@ def test_attention_mask():
     swin_layer = BasicLayer(8, 2, 2, window_size=window_size)
     expected = swin_layer.attention_mask(h, w)
 
-    result = torch.zeros_like(expected)
-    result = workbench.invoke_test("biref_attention_mask", result, {})
+    x = torch.zeros_like(expected)
+    result = workbench.invoke_test("biref_attention_mask", x, {})
 
     assert torch.allclose(result, expected)
 

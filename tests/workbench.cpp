@@ -284,10 +284,11 @@ DEF(biref_patch_merging)(model_ref m, span<tensor> input, param_dict const& p) {
     return {swin::patch_merging(m, input[0], 6, 4)};
 }
 
-DEF(biref_attention_mask)(model_ref m, span<tensor> input, param_dict const& p) {
-    auto dst = span((byte*)input[0]->data, ggml_nbytes(input[0]));
-    swin::compute_attention_mask(dst, 18, 18, 6);
-    return {input[0]};
+DEF(biref_attention_mask)(model_ref m, span<tensor> /*input*/, param_dict const& p) {
+    auto mask = swin::create_attention_mask(m, 18, 18, 6);
+    ggml_backend_alloc_ctx_tensors(m, workbench_backend());
+    transfer_to_backend(mask);
+    return {ggml_cast(m, mask.x, GGML_TYPE_F32)};
 }
 
 DEF(biref_swin_layer)(model_ref m, span<tensor> input, param_dict const& p) {

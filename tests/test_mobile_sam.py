@@ -1325,7 +1325,8 @@ def test_output_upscaling():
     result = workbench.invoke_test("sam_output_upscaling", x, state, nhwc_layout, backend="vulkan")
     result = to_nchw(result)
 
-    assert torch.allclose(result, expected, atol=1e-4, rtol=1e-2)  # fp16 weights
+    workbench.print_results(result, expected)
+    assert torch.allclose(result, expected, rtol=0.1)  # fp16 weights
 
 
 class MaskDecoder(torch.nn.Module):

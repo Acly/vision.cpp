@@ -1,5 +1,6 @@
 import ctypes
 from functools import reduce
+from typing import Mapping
 import torch
 import os
 
@@ -66,7 +67,7 @@ def raw_to_torch_tensor(raw_tensor: RawTensor):
     ).reshape(shape)
 
 
-def encode_params(params: dict[str, str | int | float]):
+def encode_params(params: Mapping[str, str | int | float]):
     raw_params = []
     for name, value in params.items():
         ptype = 0
@@ -109,7 +110,7 @@ def invoke_test(
     test_case: str,
     input: torch.Tensor | list[torch.Tensor],
     state: dict[str, torch.Tensor],
-    params: dict[str, str | int | float] = {},
+    params: Mapping[str, str | int | float] = {},
     backend: str = "cpu",
 ):
     input = input if isinstance(input, list) else [input]
@@ -142,7 +143,7 @@ def invoke_test(
     return output
 
 
-def input_tensor(*shape: tuple[int]):
+def input_tensor(*shape: int):
     end = reduce(lambda x, y: x * y, shape, 1)
     return torch.arange(0, end).reshape(*shape) / end
 
