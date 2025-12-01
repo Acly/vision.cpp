@@ -70,6 +70,12 @@ if(VISP_DEV OR VISP_CI)
     set(VISP_WARNINGS -Wall -Wextra -Wpedantic -Werror)
   endif()
 endif()
+# Suppress warnings for external libraries
+if(MSVC)
+  set(VISP_NO_WARNINGS /W0)
+else()
+  set(VISP_NO_WARNINGS -w)
+endif()
 
 # Dependencies
 
