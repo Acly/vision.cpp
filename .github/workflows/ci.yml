@@ -48,7 +48,6 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         run: >
           cmake . -B build -G Ninja
-          -D CMAKE_BUILD_TYPE=Release
           -D VISP_CI=ON
           -D VISP_VULKAN=ON
           -D VISP_FMT_LIB=ON
@@ -57,7 +56,6 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: >
           cmake . -B build -A x64
-          -D CMAKE_BUILD_TYPE=Release
           -D VISP_CI=ON
           -D VISP_VULKAN=ON
 
@@ -65,11 +63,8 @@ jobs:
         if: matrix.os == 'macos-14'
         run: >
           cmake . -B build -G Ninja
-          -D CMAKE_BUILD_TYPE=Release
           -D VISP_CI=ON
           -D GGML_METAL=OFF
-          -D GGML_RPC=ON
-          -D CMAKE_BUILD_RPATH="@loader_path"
 
       - name: Build
         run: cmake --build build --config Release
