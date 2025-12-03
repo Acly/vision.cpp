@@ -4,6 +4,22 @@
 
 namespace visp {
 
+model_family model_detect_family(model_file const& file) {
+    std::string_view arch = file.arch();
+    if (arch == "mobile-sam") {
+        return model_family::sam;
+    } else if (arch == "birefnet") {
+        return model_family::birefnet;
+    } else if (arch == "depthanything") {
+        return model_family::depth_anything;
+    } else if (arch == "migan") {
+        return model_family::migan;
+    } else if (arch == "esrgan") {
+        return model_family::esrgan;
+    }
+    return model_family::count;
+}
+
 //
 // Mobile SAM
 

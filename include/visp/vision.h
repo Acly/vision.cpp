@@ -81,6 +81,21 @@
 
 namespace visp {
 
+// Supported model architectures
+
+enum class model_family {
+    sam = 0,
+    birefnet,
+    depth_anything,
+    migan,
+    esrgan,
+
+    count
+};
+
+VISP_API model_family model_detect_family(model_file const&);    
+
+//
 // SWIN v1 - vision transformer for feature extraction
 
 constexpr int swin_n_layers = 4;
@@ -104,6 +119,7 @@ VISP_API swin_params swin_detect_params(model_file const&);
 VISP_API swin_buffers swin_precompute(model_ref, i32x2 image_extent, swin_params const&);
 VISP_API swin_result swin_encode(model_ref, tensor image, swin_params const&);
 
+//
 // DINO v2 - vision transformer for feature extraction
 
 struct dino_params {
