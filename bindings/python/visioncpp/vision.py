@@ -1,7 +1,7 @@
-from ctypes import CDLL, byref
+from ctypes import CDLL, byref, c_int32
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Sequence
 import PIL.Image
 
 from . import _lib as lib
@@ -84,39 +84,56 @@ class Arch(Enum):
     unknown = 5
 
 
-class ESRGAN:
-    arch = Arch.esrgan
-
+class Model:
     @classmethod
-    def load(cls, path: str | Path, device: Device):
+    def load(cls, path: str | Path, device: Device, arch=Arch.unknown):
         api = get_lib()
         handle = lib.Model()
-        check(
-            api.visp_model_load(
-                lib.path_to_char_p(path), device._handle, cls.arch.value, byref(handle)
-            )
-        )
-        return cls(api, handle)
+        path_str = lib.path_to_char_p(path)
+        if arch is Arch.unknown:
+            arch_v = c_int32()
+            check(api.visp_model_detect_family(path_str, byref(arch_v)))
+            arch = Arch(arch_v.value)
+        else:
+            arch_v = arch.value
 
-    def compute(self, image: Image):
-        api = self._api
-        in_view = _img_view(image)
+        check(api.visp_model_load(path_str, device._handle, arch_v, byref(handle)))
+        return cls(api, handle, arch)
+
+    def compute(self, *images: Image, args: Sequence[int] | None = None):
+        if args is None:
+            args = []
+
+        in_views = [_img_view(i) for i in images]
+        in_views_array = (lib.ImageView * len(in_views))(*in_views)
+        args_array = (lib.c_int32 * len(args))(*args)
         out_view = lib.ImageView()
         out_data = lib.ImageData()
-        check(api.visp_esrgan_compute(self._handle, in_view, byref(out_view), byref(out_data)))
+        check(
+            self._api.visp_model_compute(
+                self._handle,
+                self.arch.value,
+                in_views_array,
+                len(in_views_array),
+                args_array,
+                len(args_array),
+                byref(out_view),
+                byref(out_data),
+            )
+        )
         try:
             result = lib.ImageView.to_pil_image(out_view)
         finally:
-            api.visp_image_destroy(out_data)
+            self._api.visp_image_destroy(out_data)
         return result
 
-    def __init__(self, api: CDLL, handle: lib.Handle):
+    def __init__(self, api: CDLL, handle: lib.Handle, arch: Arch):
+        self.arch = arch
         self._api = api
         self._handle = handle
 
     def __del__(self):
         self._api.visp_model_destroy(self._handle, self.arch.value)
-
 
 
 def _img_view(i: Image) -> lib.ImageView:

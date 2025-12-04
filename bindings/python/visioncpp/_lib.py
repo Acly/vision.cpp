@@ -2,6 +2,7 @@ import ctypes
 import platform
 from pathlib import Path
 from ctypes import c_byte, c_char_p, c_void_p, c_int32, POINTER
+from PIL import Image
 
 
 class Error(Exception):
@@ -23,7 +24,7 @@ def _image_format_to_string(format: int):
 def _image_mode_from_string(mode: str):
     match mode:
         case "RGBA":
-            return 0, 4 # visp::image_format, bytes per pixel
+            return 0, 4  # visp::image_format, bytes per pixel
         case "RGB":
             return 3, 3
         case "L":
@@ -48,8 +49,6 @@ class ImageView(ctypes.Structure):
 
     @staticmethod
     def from_pil_image(image):
-        from PIL import Image
-
         assert isinstance(image, Image.Image), "Expected a PIL Image"
         data = image.tobytes()
         w, h = image.size
@@ -57,8 +56,6 @@ class ImageView(ctypes.Structure):
         return ImageView.from_bytes(w, h, w * bpp, format, data)
 
     def to_pil_image(self):
-        from PIL import Image
-
         mode = _image_format_to_string(self.format)
         size = self.height * self.stride
         data = memoryview((c_byte * size).from_address(self.data))
@@ -145,8 +142,17 @@ def init():
     lib.visp_model_destroy.argtypes = [Model, c_int32]
     lib.visp_model_destroy.restype = None
 
-    lib.visp_esrgan_compute.argtypes = [Model, ImageView, POINTER(ImageView), POINTER(ImageData)]
-    lib.visp_esrgan_compute.restype = c_int32
+    lib.visp_model_compute.argtypes = [
+        Model,
+        c_int32,
+        POINTER(ImageView),
+        c_int32,
+        POINTER(c_int32),
+        c_int32,
+        POINTER(ImageView),
+        POINTER(ImageData),
+    ]
+    lib.visp_model_compute.restype = c_int32
 
     return lib
 
