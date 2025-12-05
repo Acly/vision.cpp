@@ -3,6 +3,11 @@ dynamic = ["version"]
 name = "vision.cpp"
 requires-python = ">=3.12"
 dependencies = [
+    "pillow",
+]
+
+[dependency-groups]
+dev = [
     "torch",
     "torchvision",
     "timm",
@@ -12,6 +17,7 @@ dependencies = [
     "einops>=0.8.1",
     "spandrel>=0.4.1",
     "gguf>=0.17.1",
+    "boto3~=1.39.0"
 ]
 
 [tool.uv]

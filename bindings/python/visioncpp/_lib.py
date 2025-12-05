@@ -87,16 +87,20 @@ def _load():
     if system == "windows":
         prefix = ""
         suffix = ".dll"
+        libdir = "bin"
     elif system == "darwin":
         prefix = "lib"
         suffix = ".dylib"
+        libdir = "lib"
     else:  # assume Linux / Unix
         prefix = "lib"
         suffix = ".so"
+        libdir = "lib"
     libname = f"{prefix}visioncpp{suffix}"
     paths = [
         cur_dir / libname,
-        cur_dir.parent.parent.parent / "build" / "bin" / libname,
+        cur_dir.parent.parent / libdir / libname,
+        cur_dir.parent.parent.parent / "build" / libdir / libname,
     ]
     error = None
     for path in paths:

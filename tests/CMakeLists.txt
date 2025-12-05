@@ -46,6 +46,14 @@ target_link_options(vision-workbench PRIVATE ${VISP_LINK_OPTIONS})
 target_link_libraries(vision-workbench PRIVATE visioncpp ggml ${VISP_FMT_LINK})
 
 #
+# Python tests
+
+if(VISP_CI)
+  set(PYTHON_TESTS_ARGS "--ci")
+endif()
+add_test(NAME python COMMAND uv run pytest -vs tests ${PYTHON_TESTS_ARGS})
+
+#
 # Benchmarks
 
 add_executable(vision-bench)

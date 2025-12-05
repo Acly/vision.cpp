@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(vision.cpp VERSION 0.2.0 LANGUAGES CXX)
+project(vision.cpp VERSION 0.3.0 LANGUAGES CXX)
 
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static libraries" ON)
 option(VISP_VULKAN "Enable Vulkan support" OFF)
@@ -144,6 +144,8 @@ install(TARGETS vision-cli RUNTIME DESTINATION ${VISP_BIN_INSTALL_DIR})
 if(VISP_CI OR VISP_DEV)
   set_target_properties(vision-cli PROPERTIES INSTALL_RPATH "\$ORIGIN/../${VISP_LIB_INSTALL_DIR}")
 endif()
+
+install(DIRECTORY bindings/python DESTINATION ${CMAKE_INSTALL_PREFIX} PATTERN "__pycache__" EXCLUDE)
 
 include(CMakePackageConfigHelpers)
 

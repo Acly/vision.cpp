@@ -174,7 +174,7 @@ ctest -C Release
 Some tests require a Python environment. It can be set up with [uv](https://docs.astral.sh/uv/):
 ```sh
 # Setup venv and install dependencies (once only)
-uv sync
+uv sync --dev
 
 # Run python tests
 uv run pytest

@@ -76,7 +76,6 @@ def test_conv_transpose_2d(scenario: str):
     if scenario == "nhwc":
         result = to_nchw(result)
 
-    workbench.print_results(result, expected)
     assert torch.allclose(result, expected, rtol=1e-2)
 
 
