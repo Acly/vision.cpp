@@ -145,7 +145,7 @@ if(VISP_CI OR VISP_DEV)
   set_target_properties(vision-cli PROPERTIES INSTALL_RPATH "\$ORIGIN/../${VISP_LIB_INSTALL_DIR}")
 endif()
 
-install(DIRECTORY bindings/python DESTINATION ${CMAKE_INSTALL_PREFIX} PATTERN "__pycache__" EXCLUDE)
+install(DIRECTORY bindings/python DESTINATION . PATTERN "__pycache__" EXCLUDE)
 
 include(CMakePackageConfigHelpers)
 

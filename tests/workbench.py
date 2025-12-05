@@ -1,10 +1,11 @@
 import ctypes
-from functools import reduce
-from typing import Mapping
 import torch
 import os
-
+import platform
+from functools import reduce
+from typing import Mapping
 from pathlib import Path
+from torch import Tensor
 
 float_ptr = ctypes.POINTER(ctypes.c_float)
 
@@ -90,20 +91,40 @@ def encode_params(params: Mapping[str, str | int | float]):
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 root_dir = Path(__file__).parent.parent
-bin_dir = root_dir / "build" / "bin"
 
-lib = ctypes.CDLL(str(bin_dir / "vision-workbench.dll"))
-lib.visp_workbench.argtypes = [
-    ctypes.c_char_p,
-    ctypes.POINTER(RawTensor),
-    ctypes.c_int32,
-    ctypes.POINTER(RawParam),
-    ctypes.c_int32,
-    ctypes.POINTER(ctypes.POINTER(RawTensor)),
-    ctypes.POINTER(ctypes.c_int32),
-    ctypes.c_int32,
-]
-lib.visp_workbench.restype = ctypes.c_int32
+def _load_library():
+    system = platform.system().lower()
+    if system == "windows":
+        prefix = ""
+        suffix = ".dll"
+        libdir = "bin"
+    elif system == "darwin":
+        prefix = "lib"
+        suffix = ".dylib"
+        libdir = "lib"
+    else:  # assume Linux / Unix
+        prefix = "lib"
+        suffix = ".so"
+        libdir = "lib"
+    lib_path = root_dir / "build" / libdir / f"{prefix}vision-workbench{suffix}"
+    return ctypes.CDLL(str(lib_path))
+
+try:
+    lib = _load_library()
+
+    lib.visp_workbench.argtypes = [
+        ctypes.c_char_p,
+        ctypes.POINTER(RawTensor),
+        ctypes.c_int32,
+        ctypes.POINTER(RawParam),
+        ctypes.c_int32,
+        ctypes.POINTER(ctypes.POINTER(RawTensor)),
+        ctypes.POINTER(ctypes.c_int32),
+        ctypes.c_int32,
+    ]
+    lib.visp_workbench.restype = ctypes.c_int32
+except OSError as e:
+    print(f"Error loading vision-workbench library: {e}")
 
 
 def invoke_test(
@@ -168,11 +189,14 @@ def to_nhwc(tensor: torch.Tensor):
     return tensor.permute(0, 2, 3, 1).contiguous()
 
 
-def to_nchw(tensor: torch.Tensor):
+def to_nchw(tensor: Tensor|list[Tensor]|None):
+    assert tensor is not None
+    if isinstance(tensor, list):
+        return [t.permute(0, 3, 1, 2).contiguous() for t in tensor]
     return tensor.permute(0, 3, 1, 2).contiguous()
 
 
-def convert_to_nhwc(state: dict[str, torch.Tensor], key=""):
+def convert_to_nhwc(state: dict[str, Tensor], key=""):
     for k, v in state.items():
         is_conv = (
             v.ndim == 4
@@ -250,7 +274,25 @@ def fuse_conv_2d_batch_norm(
     return False  # no match
 
 
-def print_results(result: torch.Tensor, expected: torch.Tensor):
+def print_results(result: Tensor, expected: Tensor):
     print("\ntorch seed:", torch.initial_seed())
     print("\nresult -----", result, sep="\n")
     print("\nexpected ---", expected, sep="\n")
+
+
+def tensors_match(
+    result: Tensor | list[Tensor] | None,
+    expected: Tensor | list[Tensor],
+    rtol=1e-3,
+    atol=1e-5,
+    show=False,
+):
+    assert result is not None, "No result returned"
+    if isinstance(expected, list):
+        assert isinstance(result, list), "Result is not a list"
+        assert len(result) == len(expected), f"Expected {len(expected)} tensors, got {len(result)}"
+        return all(tensors_match(r, e, rtol, atol, show) for r, e in zip(result, expected))
+    assert isinstance(result, Tensor), "Result is not a tensor"
+    if show:
+        print_results(result, expected)
+    return torch.allclose(result, expected, rtol=rtol, atol=atol)

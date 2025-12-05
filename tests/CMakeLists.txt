@@ -51,7 +51,9 @@ target_link_libraries(vision-workbench PRIVATE visioncpp ggml ${VISP_FMT_LINK})
 if(VISP_CI)
   set(PYTHON_TESTS_ARGS "--ci")
 endif()
-add_test(NAME python COMMAND uv run pytest -vs tests ${PYTHON_TESTS_ARGS})
+add_test(NAME python
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  COMMAND uv run pytest -vs tests ${PYTHON_TESTS_ARGS})
 
 #
 # Benchmarks

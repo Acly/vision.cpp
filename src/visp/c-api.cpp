@@ -156,6 +156,11 @@ VISP_API void visp_image_destroy(image_data* img) {
 
 // device
 
+VISP_API int32_t visp_backend_load_all(char const* dir) {
+    ggml_backend_load_all_from_path(dir);
+    return (int32_t)ggml_backend_reg_count();
+}
+
 VISP_API int32_t visp_device_init(int32_t type, backend_device** out_device) {
     return handle_errors([&]() {
         if (type == 0) {
@@ -188,7 +193,7 @@ VISP_API char const* visp_device_description(backend_device const* d) {
 
 // models
 
-struct any_model {};
+struct any_model;
 
 VISP_API int32_t visp_model_detect_family(char const* filepath, int32_t* out_family) {
     return handle_errors([&]() {

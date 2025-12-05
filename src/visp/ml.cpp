@@ -59,8 +59,10 @@ backend_device backend_init() {
     load_ggml_backends();
     backend_device b;
     b.handle.reset(ggml_backend_init_best());
+    if (!b.handle) {
+        throw except("Failed to initialize backend, no suitable device available");
+    }
     b.device = ggml_backend_get_device(b.handle.get());
-    ASSERT(b.handle, "Failed to initialize backend");
     return b;
 }
 

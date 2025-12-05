@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from . import workbench
-from .workbench import input_tensor, to_nchw, to_nhwc
+from .workbench import input_tensor, to_nchw, to_nhwc, tensors_match
 
 
 def test_linear():
@@ -13,7 +13,7 @@ def test_linear():
     result = workbench.invoke_test("linear", x, dict(weight=weight, bias=bias))
 
     expected = torch.nn.functional.linear(x, weight, bias)
-    assert torch.allclose(result, expected)
+    assert tensors_match(result, expected)
 
 
 @pytest.mark.parametrize("scenario", ["stride_1_pad_0", "stride_2_pad_1", "dilation_2_pad_2"])
@@ -48,7 +48,7 @@ def test_conv_2d_depthwise(scenario: str, memory_layout: str, batch: str, backen
     if memory_layout == "nhwc":
         result = to_nchw(result)
 
-    assert torch.allclose(result, expected)
+    assert tensors_match(result, expected)
 
 
 @pytest.mark.parametrize("scenario", ["3x3", "5x5", "stride2", "nhwc"])
@@ -76,7 +76,7 @@ def test_conv_transpose_2d(scenario: str):
     if scenario == "nhwc":
         result = to_nchw(result)
 
-    assert torch.allclose(result, expected, rtol=1e-2)
+    assert tensors_match(result, expected, rtol=1e-2)
 
 
 # def test_batch_norm_2d():
@@ -106,7 +106,7 @@ def test_layer_norm():
     result = workbench.invoke_test("layer_norm", x, dict(weight=weight, bias=bias))
 
     expected = torch.nn.functional.layer_norm(x, [dim], weight, bias, eps=1e-5)
-    assert torch.allclose(result, expected, atol=1e-6)
+    assert tensors_match(result, expected, atol=1e-6)
 
 
 @pytest.mark.parametrize("backend", ["cpu", "vulkan"])
@@ -133,7 +133,7 @@ def test_window_partition(backend: str):
 
     result = workbench.invoke_test("sam_window_partition", x, {}, backend=backend)
 
-    assert torch.allclose(result, expected)
+    assert tensors_match(result, expected)
 
 
 @pytest.mark.parametrize("shift", [(0, 2, -1, 0), (0, -2, 0, 3)])
@@ -147,7 +147,7 @@ def test_roll(shift: tuple[int, int, int, int], backend: str):
     params = dict(s0=shift[3], s1=shift[2], s2=shift[1], s3=shift[0])
     result = workbench.invoke_test("roll", x, {}, params, backend)
 
-    assert torch.allclose(result, expected)
+    assert tensors_match(result, expected)
 
 
 @pytest.mark.parametrize("mode", ["bilinear", "bicubic"])
@@ -169,4 +169,4 @@ def test_interpolate(mode: str, align_corners: bool, size: str, scale: float, ba
 
     params = dict(mode=mode, h=target[0], w=target[1], align_corners=1 if align_corners else 0)
     result = workbench.invoke_test("interpolate", x, {}, params, backend)
-    assert torch.allclose(result, expected)
+    assert tensors_match(result, expected)

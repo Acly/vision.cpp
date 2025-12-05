@@ -101,23 +101,27 @@ def _load():
         cur_dir / libname,
         cur_dir.parent.parent / libdir / libname,
         cur_dir.parent.parent.parent / "build" / libdir / libname,
+        cur_dir.parent.parent.parent / "build" / libdir / "Release" / libname,
     ]
-    error = None
+    error = f"Library {libname} not found in any of the following paths: {paths}"
     for path in paths:
         if path.exists():
             try:
                 lib = ctypes.CDLL(str(path))
-                return lib
+                return lib, path
             except OSError as e:
                 error = e
                 continue
-    raise OSError(f"Could not load vision.cpp library from paths: {error}")
+    raise OSError(f"Could not load vision.cpp library: {error}")
 
 
 def init():
-    lib = _load()
+    lib, path = _load()
 
     lib.visp_get_last_error.restype = c_char_p
+
+    lib.visp_backend_load_all.argtypes = [c_char_p]
+    lib.visp_backend_load_all.restype = c_int32
 
     lib.visp_image_destroy.argtypes = [ImageData]
     lib.visp_image_destroy.restype = None
@@ -157,6 +161,12 @@ def init():
         POINTER(ImageData),
     ]
     lib.visp_model_compute.restype = c_int32
+
+    # On Linux, libvisioncpp might be in lib/ and ggml backends in bin/
+    if path.parent.name == "lib":
+        bin_dir = path.parent.parent / "bin"
+        if bin_dir.exists():
+            lib.visp_backend_load_all(str(bin_dir).encode())
 
     return lib
 
