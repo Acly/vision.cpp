@@ -75,9 +75,9 @@ class Writer(GGUFWriter):
             self.conv2d_weights.append(self._index)
             return tensor
 
-    def add_int32(self, name: str, value: int):
-        print("*", name, "=", value)
-        super().add_int32(name, value)
+    def add_int32(self, key: str, val: int):
+        print("*", key, "=", val)
+        super().add_int32(key, val)
 
     def set_tensor_layout(self, layout: TensorLayout):
         print("*", f"{self.arch}.tensor_data_layout", "=", layout.value)
@@ -201,7 +201,7 @@ def convert_sam(input_filepath: Path, writer: Writer):
     writer.add_license("apache-2.0")
     writer.set_tensor_layout_default(TensorLayout.nchw)
 
-    model: dict[str, Tensor] = torch.load(input_filepath, map_location="cpu", weights_only=True)
+    model = load_model(input_filepath)
 
     for key, tensor in model.items():
         name = key
@@ -286,8 +286,7 @@ def convert_birefnet(input_filepath: Path, writer: Writer):
     writer.add_license("mit")
     writer.set_tensor_layout_default(TensorLayout.nchw)
 
-    weights = safetensors.safe_open(input_filepath, "pt")
-    model: dict[str, Tensor] = {k: weights.get_tensor(k) for k in weights.keys()}
+    model = load_model(input_filepath)
 
     x = model["bb.layers.0.blocks.0.attn.proj.bias"]
     if x.shape[0] == 96:
@@ -360,7 +359,7 @@ def convert_depth_anything(input_filepath: Path, writer: Writer):
         writer.add_license("cc-by-nc-4.0")
     writer.set_tensor_layout_default(TensorLayout.nchw)
 
-    model: dict[str, Tensor] = load_model(input_filepath)
+    model = load_model(input_filepath)
 
     if "pretrained.cls_token" in model:
         print("The converter is written for the transformers (.safetensors) version of the model.")
@@ -411,7 +410,7 @@ def convert_migan(input_filepath: Path, writer: Writer):
     writer.add_license("mit")
     writer.set_tensor_layout_default(TensorLayout.nchw)
 
-    model: dict[str, Tensor] = torch.load(input_filepath, weights_only=True)
+    model = load_model(input_filepath)
 
     if "encoder.b512.fromrgb.weight" in model:
         writer.add_int32("migan.image_size", 512)
