@@ -1,8 +1,8 @@
 #include "visp/arch/mobile-sam.h"
-#include "visp/nn.h"
-#include "visp/vision.h"
 #include "util/math.h"
 #include "util/string.h"
+#include "visp/nn.h"
+#include "visp/vision.h"
 
 #include <ggml.h>
 
@@ -13,7 +13,7 @@ namespace visp {
 namespace sam {
 
 tensor conv_2d_batch_norm(model_ref m, tensor x, int stride = 1, int pad = 0) {
-     // batch_norm is fused into conv_2d when converting the model
+    // batch_norm is fused into conv_2d when converting the model
     return conv_2d(m["c"], x, stride, pad);
 }
 
@@ -67,7 +67,6 @@ tensor window_reverse(model_ref m, tensor x, int w, int h, int window) {
 //
 // Image encoder
 //
-
 
 tensor patch_embed(model_ref m, tensor x) {
     x = conv_2d_batch_norm(m["seq.0"], x, 2, 1);
@@ -142,17 +141,30 @@ tensor attention_rel_bias(model_ref m, tensor x, int dim, int num_heads) {
     tensor q = split(m, qkv, 0);
     tensor k = split(m, qkv, 1);
     tensor v = split(m, qkv, 2);
-    q = ggml_cont(m, ggml_permute(m, q, 0, 2, 1, 3));
-    k = ggml_cont(m, ggml_permute(m, k, 0, 2, 1, 3));
-    v = ggml_cont(m, ggml_permute(m, v, 1, 2, 0, 3)); // transpose for mul_mat later
+    tensor mask = m.weights("attention_biases_indexed");
+    float scale = 1.0f / std::sqrt(float(key_dim));
 
-    tensor attn = ggml_mul_mat(m, k, q); // q @ k (k is transposed in mul_mat)
-    attn = ggml_scale_inplace(m, attn, 1.0f / std::sqrt(float(key_dim)));
-    attn = ggml_add_inplace(m, attn, m.weights("attention_biases_indexed"));
-    attn = ggml_soft_max(m, attn);
+    if (m.flags & model_build_flag::flash_attention) {
+        q = ggml_cont(m, ggml_permute(m, q, 0, 2, 1, 3));
+        k = ggml_cast(m, ggml_permute(m, k, 0, 2, 1, 3), GGML_TYPE_F16);
+        v = ggml_cast(m, ggml_permute(m, v, 0, 2, 1, 3), GGML_TYPE_F16);
+        if (mask->type != GGML_TYPE_F16) {
+            mask = ggml_cast(m, mask, GGML_TYPE_F16);
+        }
 
-    x = ggml_mul_mat(m, v, attn);                     // attn @ v
-    x = ggml_cont(m, ggml_permute(m, x, 0, 2, 1, 3)); // transpose(1, 2)
+        x = ggml_flash_attn_ext(m, q, k, v, mask, scale, 0.0f, 0.0f);
+        ggml_flash_attn_ext_set_prec(x, GGML_PREC_F32);
+    } else {
+        q = ggml_cont(m, ggml_permute(m, q, 0, 2, 1, 3));
+        k = ggml_cont(m, ggml_permute(m, k, 0, 2, 1, 3));
+        v = ggml_cont(m, ggml_permute(m, v, 1, 2, 0, 3)); // transpose for mul_mat later
+
+        tensor attn = ggml_mul_mat(m, k, q); // q @ k (k is transposed in mul_mat)
+        attn = ggml_soft_max_ext(m, attn, mask, scale, 0.0f);
+
+        x = ggml_mul_mat(m, v, attn);                     // attn @ v
+        x = ggml_cont(m, ggml_permute(m, x, 0, 2, 1, 3)); // transpose(1, 2)
+    }
     x = ggml_reshape_3d(m, x, key_dim * num_heads, n, b);
     x = linear(m["proj"], x);
 

@@ -154,6 +154,11 @@ DEF(sam_mlp)(model_ref m, span<tensor> input, param_dict const& p) {
 }
 
 DEF(sam_attention_rel_bias)(model_ref m, span<tensor> input, param_dict const& p) {
+    if (p.get("attn", "default") == "flash_attn"sv) {
+        m.flags = m.flags | model_build_flag::flash_attention;
+    } else {
+        m.flags = m.flags & ~model_build_flag::flash_attention;
+    }
     return {sam::attention_rel_bias(m, input[0], 4, 2)};
 }
 

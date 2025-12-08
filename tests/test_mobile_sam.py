@@ -6,7 +6,7 @@ import pytest
 from torch import Tensor
 
 from . import workbench
-from .workbench import to_nhwc, to_nchw, convert_to_nhwc, fuse_conv_2d_batch_norm
+from .workbench import to_nhwc, to_nchw, convert_to_nhwc, fuse_conv_2d_batch_norm, tensors_match
 
 torch.set_printoptions(precision=2, linewidth=100, sci_mode=False)
 
@@ -53,7 +53,7 @@ def test_conv_2d_batch_norm(bias: bool):
     result = workbench.invoke_test("sam_conv_2d_batch_norm", x, state, nhwc_layout)
     result = to_nchw(result)
 
-    assert torch.allclose(result, expected)
+    assert tensors_match(result, expected)
 
 
 class PatchEmbed(torch.nn.Module):
@@ -98,7 +98,7 @@ def test_patch_embed():
     result = workbench.invoke_test("sam_patch_embed", x, state, nhwc_layout)
     result = to_nchw(result)
 
-    assert torch.allclose(result, expected, rtol=0.001, atol=0.02)
+    assert tensors_match(result, expected, rtol=0.001, atol=0.02)
 
 
 class LayerNorm2d(torch.nn.Module):
@@ -130,7 +130,7 @@ def test_layer_norm_2d():
     result = workbench.invoke_test("layer_norm", x, state, nhwc_layout)
     result = to_nchw(result)
 
-    assert torch.allclose(result, expected, rtol=0.001, atol=0.02)
+    assert tensors_match(result, expected, rtol=0.001, atol=0.02)
 
 
 class MBConv(torch.nn.Module):
@@ -193,7 +193,7 @@ def test_mb_conv():
     result = to_nchw(result)
 
     # precision: ggml_gelu uses fp16 look-up table & tanh approximation
-    assert torch.allclose(result, expected, rtol=0.001, atol=0.02)
+    assert tensors_match(result, expected, rtol=0.001, atol=0.02)
 
 
 class PatchMerging(torch.nn.Module):
@@ -244,7 +244,7 @@ def test_patch_merging():
     result = result.transpose(1, 2).reshape_as(expected)
 
     # precision: ggml_gelu uses fp16 look-up table & tanh approximation
-    assert torch.allclose(result, expected, rtol=0.001, atol=0.02)
+    assert tensors_match(result, expected, rtol=0.001, atol=0.02)
 
 
 class Mlp(torch.nn.Module):
@@ -288,7 +288,7 @@ def test_mlp():
     result = workbench.invoke_test("sam_mlp", x, state)
 
     # precision: ggml_gelu uses fp16 look-up table & tanh approximation
-    assert torch.allclose(result, expected, rtol=0.001, atol=0.02)
+    assert tensors_match(result, expected, rtol=0.001, atol=0.02)
 
 
 class AttentionRelBias(torch.nn.Module):
@@ -370,8 +370,8 @@ class AttentionRelBias(torch.nn.Module):
         x = self.proj(x)
         return x
 
-
-def test_attention_rel_bias():
+@pytest.mark.parametrize("attn", ["default", "flash_attn"])
+def test_attention_rel_bias(attn:str):
     attention = AttentionRelBias(4, 2, num_heads=2, attn_ratio=1, resolution=(3, 3))
     state = workbench.randomize(attention.state_dict())
     attention.load_state_dict(state)
@@ -381,9 +381,9 @@ def test_attention_rel_bias():
     expected = attention(x)
 
     state["attention_biases_indexed"] = state["attention_biases"][:, attention.attention_bias_idxs]
-    result = workbench.invoke_test("sam_attention_rel_bias", x, state)
+    result = workbench.invoke_test("sam_attention_rel_bias", x, state, {"attn": attn})
 
-    assert torch.allclose(result, expected, atol=0.001)
+    assert tensors_match(result, expected, atol=0.001)
 
 
 class TinyViTBlock(torch.nn.Module):
@@ -495,7 +495,7 @@ def test_tiny_vit_block():
     state = convert_to_nhwc(state)
     result = workbench.invoke_test("sam_tiny_vit_block", x, state, nhwc_layout)
 
-    assert torch.allclose(result, expected, rtol=0.001, atol=0.02)
+    assert tensors_match(result, expected, rtol=0.001, atol=0.02)
 
 
 class ConvLayer(torch.nn.Module):
@@ -787,7 +787,7 @@ def test_tiny_vit():
     # result = torch.zeros_like(expected).contiguous()
     # result = workbench.invoke_test("sam_tiny_vit", x, state)
 
-    # assert torch.allclose(result, expected, rtol=0.001, atol=0.02)
+    # assert tensors_match(result, expected, rtol=0.001, atol=0.02)
 
 
 #
@@ -835,7 +835,7 @@ def test_position_embedding_random():
 
     result = workbench.invoke_test("sam_position_embedding_random", x, state)
 
-    assert torch.allclose(result, expected)
+    assert tensors_match(result, expected)
 
 
 class PromptEncoder(torch.nn.Module):
@@ -951,7 +951,7 @@ def test_prompt_encoder_points():
     points = torch.cat([points, -torch.ones(1, 1, 2)], dim=1)
     result = workbench.invoke_test("sam_embed_points", points, state)
 
-    assert torch.allclose(result, expected)
+    assert tensors_match(result, expected)
 
 
 def test_prompt_encoder_box():
@@ -970,7 +970,7 @@ def test_prompt_encoder_box():
 
     result = workbench.invoke_test("sam_embed_box", boxes, state)
 
-    assert torch.allclose(result, expected)
+    assert tensors_match(result, expected)
 
 
 #
@@ -1046,7 +1046,7 @@ def test_attention():
     state["input_v"] = v
     result = workbench.invoke_test("sam_attention", q, state)
 
-    assert torch.allclose(result, expected)
+    assert tensors_match(result, expected)
 
 
 class MLPBlock(torch.nn.Module):
@@ -1155,8 +1155,8 @@ def test_two_way_attention_block(mode):
         "sam_two_way_attention_block", queries, state, {"mode": mode}
     )
 
-    assert torch.allclose(result_queries, expected_queries)
-    assert torch.allclose(result_keys, expected_keys)
+    assert tensors_match(result_queries, expected_queries)
+    assert tensors_match(result_keys, expected_keys)
 
 
 class TwoWayTransformer(torch.nn.Module):
@@ -1257,8 +1257,8 @@ def test_two_way_transformer():
         "sam_two_way_transformer", image_embedding, state, nhwc_layout
     )
 
-    assert torch.allclose(result_queries, expected_queries, atol=1e-6, rtol=1e-4)
-    assert torch.allclose(result_keys, expected_keys, atol=1e-6, rtol=1e-4)
+    assert tensors_match(result_queries, expected_queries, atol=1e-6, rtol=1e-4)
+    assert tensors_match(result_keys, expected_keys, atol=1e-6, rtol=1e-4)
 
 
 class HypernetworkMLP(torch.nn.Module):
@@ -1297,7 +1297,7 @@ def test_hypernetwork_mlp():
 
     result = workbench.invoke_test("sam_hypernetwork_mlp", x, state)
 
-    assert torch.allclose(result, expected)
+    assert tensors_match(result, expected)
 
 
 def output_upscaling(transformer_dim: int, activation=torch.nn.GELU):
@@ -1325,8 +1325,7 @@ def test_output_upscaling():
     result = workbench.invoke_test("sam_output_upscaling", x, state, nhwc_layout, backend="vulkan")
     result = to_nchw(result)
 
-    workbench.print_results(result, expected)
-    assert torch.allclose(result, expected, rtol=0.1)  # fp16 weights
+    assert tensors_match(result, expected, rtol=0.1)  # fp16 weights
 
 
 class MaskDecoder(torch.nn.Module):
@@ -1465,5 +1464,5 @@ def test_predict_masks():
         "sam_predict_masks", image_embeddings, state, nhwc_layout, backend="vulkan"
     )
 
-    assert torch.allclose(result_masks, expected_masks, rtol=1e-2, atol=1e-2)
-    assert torch.allclose(result_iou_pred, iou_pred, rtol=1e-2)
+    assert tensors_match(result_masks, expected_masks, rtol=1e-2, atol=1e-2)
+    assert tensors_match(result_iou_pred, iou_pred, rtol=1e-2)
