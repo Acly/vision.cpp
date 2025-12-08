@@ -80,7 +80,7 @@ tensor conv_2d(model_ref m, tensor x, int stride, int pad) {
             x = ggml_mul_mat(m, weight, x);
             x = ggml_reshape_4d(m, x, weight->ne[1], w, h, b);
 
-        } else if (m.flags & model_build_flag::conv_2d_direct_cwhn) { 
+        } else if (m.flags & model_build_flag::conv_2d_direct_cwhn) {
             weight = permute_cwhn_to_whcn(m, weight);
             x = permute_cwhn_to_whcn(m, x);
             x = ggml_conv_2d_direct(m, weight, x, stride, stride, pad, pad, 1, 1);
@@ -144,7 +144,7 @@ tensor conv_2d_deform(
         }
     }
     x = ggml_conv_2d_deform(m, weight, x, offset, mask, stride, stride, pad, pad);
-    
+
     if (m.flags & model_build_flag::cwhn) {
         x = permute_whcn_to_cwhn(m, x);
     }
@@ -180,6 +180,70 @@ tensor patch_embed(model_ref m, tensor x, int patch_size) {
         x = layer_norm(m["norm"], x);
         x = ggml_reshape_4d(m, x, c, w, h, b);
     }
+    return named(m, x);
+}
+
+attention_qkv split_qkv(model_ref m, tensor x, int n_heads, int split_dim) {
+    auto [c, n, b, _] = nelements(x);
+
+    tensor qkv = linear(m, x);
+    switch (split_dim) {
+        case 1:
+            qkv = ggml_reshape_4d(m, qkv, c / n_heads, 3, n_heads * n, b);
+            qkv = ggml_cont(m, ggml_permute(m, qkv, 0, 3, 1, 2));
+            break;
+        case 2:
+            qkv = ggml_reshape_4d(m, qkv, c / n_heads, n_heads, 3, n * b);
+            qkv = ggml_cont(m, ggml_permute(m, qkv, 0, 1, 3, 2));
+            break;
+        default: ASSERT(false, "Unsupported split_dim");
+    }
+
+    auto split = [&](tensor t, size_t index) mutable {
+        t = slice(m, t, {}, {}, {}, index);
+        t = ggml_reshape_4d(m, t, c / n_heads, n_heads, n, b);
+        return t;
+    };
+
+    tensor q = split(qkv, 0);
+    tensor k = split(qkv, 1);
+    tensor v = split(qkv, 2);
+    return {q, k, v};
+}
+
+tensor attention(
+    model_ref m, tensor q, tensor k, tensor v, tensor mask, float scale, model_ref m_out) {
+
+    q = ggml_permute(m, q, 0, 2, 1, 3);
+    k = ggml_permute(m, k, 0, 2, 1, 3);
+
+    tensor x = nullptr;
+    if (m.flags & model_build_flag::flash_attention) {
+        v = ggml_permute(m, v, 0, 2, 1, 3);
+
+        k = ggml_cast(m, k, GGML_TYPE_F16);
+        v = ggml_cast(m, v, GGML_TYPE_F16);
+        if (mask && mask->type != GGML_TYPE_F16) {
+            mask = ggml_cast(m, mask, GGML_TYPE_F16);
+        }
+
+        x = ggml_flash_attn_ext(m, q, k, v, mask, scale, 0.0f, 0.0f);
+        ggml_flash_attn_ext_set_prec(x, GGML_PREC_F32);
+
+    } else {
+        v = ggml_cont(m, ggml_permute(m, v, 1, 2, 0, 3));
+
+        tensor attn = ggml_mul_mat(m, k, q);
+        attn = ggml_soft_max_ext(m, attn, mask, scale, 0.0f);
+        x = ggml_mul_mat(m, v, attn);
+
+        x = ggml_cont(m, ggml_permute(m, x, 0, 2, 1, 3));
+    }
+
+    // [head_dim, n_heads, n_patches, batch] -> [embed_dim, n_patches, batch]
+    x = ggml_reshape_3d(m, x, x->ne[0] * x->ne[1], x->ne[2], x->ne[3]);
+    x = linear(m_out, x);
+
     return named(m, x);
 }
 

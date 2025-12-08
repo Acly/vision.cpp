@@ -12,7 +12,7 @@ tensor interpolate_pos_encoding(model_ref m, tensor x, int64_t w, int64_t h, int
 tensor prepare_tokens(model_ref m, tensor x, int patch_size);
 tensor layer_scale(model_ref m, tensor x);
 tensor mlp(model_ref m, tensor x);
-tensor attention(model_ref m, tensor x, int n_heads);
+tensor self_attention(model_ref m, tensor x, int n_heads);
 tensor layer(model_ref m, tensor x, dino_params const& p);
 
 std::vector<tensor> get_intermediate_layers(

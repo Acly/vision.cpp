@@ -121,54 +121,14 @@ tensor mlp(model_ref m, tensor x) {
     return named(m, x);
 }
 
-tensor attention_rel_bias(model_ref m, tensor x, int dim, int num_heads) {
-    GGML_ASSERT(dim % num_heads == 0);
-    int key_dim = dim / num_heads;
-    auto [c, n, b, _] = nelements(x);
+tensor attention_rel_bias(model_ref m, tensor x, int dim, int n_heads) {
+    float scale = 1.0f / std::sqrt(float(dim / n_heads));
+    tensor mask = m.weights("attention_biases_indexed");
 
     x = layer_norm(m["norm"], x);
-
-    tensor qkv = linear(m["qkv"], x);
-    qkv = ggml_reshape_4d(m, qkv, key_dim, 3, num_heads * n, b);
-    qkv = ggml_cont(m, ggml_permute(m, qkv, 0, 3, 1, 2)); // ne = [key_dim, num_heads * n, b, 3]
-
-    auto split = [=](model_ref m, tensor tensor, int64_t index) {
-        tensor = slice(m, tensor, {}, {}, {}, index);
-        tensor = ggml_reshape_4d(m, tensor, key_dim, num_heads, n, b);
-        return tensor;
-    };
-
-    tensor q = split(m, qkv, 0);
-    tensor k = split(m, qkv, 1);
-    tensor v = split(m, qkv, 2);
-    tensor mask = m.weights("attention_biases_indexed");
-    float scale = 1.0f / std::sqrt(float(key_dim));
-
-    if (m.flags & model_build_flag::flash_attention) {
-        q = ggml_cont(m, ggml_permute(m, q, 0, 2, 1, 3));
-        k = ggml_cast(m, ggml_permute(m, k, 0, 2, 1, 3), GGML_TYPE_F16);
-        v = ggml_cast(m, ggml_permute(m, v, 0, 2, 1, 3), GGML_TYPE_F16);
-        if (mask->type != GGML_TYPE_F16) {
-            mask = ggml_cast(m, mask, GGML_TYPE_F16);
-        }
-
-        x = ggml_flash_attn_ext(m, q, k, v, mask, scale, 0.0f, 0.0f);
-        ggml_flash_attn_ext_set_prec(x, GGML_PREC_F32);
-    } else {
-        q = ggml_cont(m, ggml_permute(m, q, 0, 2, 1, 3));
-        k = ggml_cont(m, ggml_permute(m, k, 0, 2, 1, 3));
-        v = ggml_cont(m, ggml_permute(m, v, 1, 2, 0, 3)); // transpose for mul_mat later
-
-        tensor attn = ggml_mul_mat(m, k, q); // q @ k (k is transposed in mul_mat)
-        attn = ggml_soft_max_ext(m, attn, mask, scale, 0.0f);
-
-        x = ggml_mul_mat(m, v, attn);                     // attn @ v
-        x = ggml_cont(m, ggml_permute(m, x, 0, 2, 1, 3)); // transpose(1, 2)
-    }
-    x = ggml_reshape_3d(m, x, key_dim * num_heads, n, b);
-    x = linear(m["proj"], x);
-
-    return named(m, x);
+    auto [q, k, v] = split_qkv(m["qkv"], x, n_heads, 1);
+    x = attention(m, q, k, v, mask, scale, m["proj"]);
+    return x;
 }
 
 tensor tiny_vit_block(
@@ -344,25 +304,18 @@ tensor separate_attention_heads(model_ref m, tensor x, int num_heads) {
     return x;
 }
 
-tensor attention(model_ref m, tensor q, tensor k, tensor v, int num_heads) {
+tensor decoder_attention(model_ref m, tensor q, tensor k, tensor v, int n_heads) {
     q = linear(m["q_proj"], q);
     k = linear(m["k_proj"], k);
     v = linear(m["v_proj"], v);
 
-    q = separate_attention_heads(m, q, num_heads);
-    k = separate_attention_heads(m, k, num_heads);
-    v = ggml_reshape_4d(m, v, v->ne[0] / num_heads, num_heads, v->ne[1], v->ne[2]);
-    v = ggml_cont(m, ggml_permute(m, v, 1, 2, 0, 3)); // already transposed for mul_mat
+    q = ggml_reshape_4d(m, q, q->ne[0] / n_heads, n_heads, q->ne[1], q->ne[2]);
+    k = ggml_reshape_4d(m, k, k->ne[0] / n_heads, n_heads, k->ne[1], k->ne[2]);
+    v = ggml_reshape_4d(m, v, v->ne[0] / n_heads, n_heads, v->ne[1], v->ne[2]);
 
-    tensor attn = ggml_mul_mat(m, k, q);
-    attn = ggml_scale_inplace(m, attn, 1.0f / std::sqrt(float(q->ne[0])));
-    attn = ggml_soft_max(m, attn);
-
-    tensor out = ggml_mul_mat(m, v, attn);
-    out = ggml_cont(m, ggml_permute(m, out, 0, 2, 1, 3));
-    out = ggml_reshape_3d(m, out, out->ne[0] * out->ne[1], out->ne[2], out->ne[3]);
-    out = linear(m["out_proj"], out);
-    return out;
+    float scale = 1.0f / std::sqrt(float(q->ne[0]));
+    tensor x = attention(m, q, k, v, nullptr, scale, m["out_proj"]);
+    return x;
 }
 
 auto two_way_attention_block(
@@ -375,10 +328,10 @@ auto two_way_attention_block(
     bool skip_first_layer_pe) -> std::tuple<tensor, tensor> {
     // Self attention block
     if (skip_first_layer_pe) {
-        queries = attention(m["self_attn"], queries, queries, queries, num_heads);
+        queries = decoder_attention(m["self_attn"], queries, queries, queries, num_heads);
     } else {
         tensor q = ggml_add(m, queries, query_pe);
-        tensor attn_out = attention(m["self_attn"], q, q, queries, num_heads);
+        tensor attn_out = decoder_attention(m["self_attn"], q, q, queries, num_heads);
         queries = ggml_add(m, queries, attn_out);
     }
     queries = layer_norm(m["norm1"], queries);
@@ -386,7 +339,7 @@ auto two_way_attention_block(
     // Cross attention block, tokens attending to image embedding
     tensor q = ggml_add(m, queries, query_pe);
     tensor k = ggml_add(m, keys, key_pe);
-    tensor attn_out = attention(m["cross_attn_t2i"], q, k, keys, num_heads);
+    tensor attn_out = decoder_attention(m["cross_attn_t2i"], q, k, keys, num_heads);
     queries = ggml_add_inplace(m, queries, attn_out);
     queries = layer_norm(m["norm2"], queries);
 
@@ -401,7 +354,7 @@ auto two_way_attention_block(
     // Cross attention block, image embedding attending to tokens
     q = ggml_add(m, queries, query_pe);
     // k = ggml_add(m, keys, key_pe); // redundant, same as above
-    attn_out = attention(m["cross_attn_i2t"], k, q, queries, num_heads);
+    attn_out = decoder_attention(m["cross_attn_i2t"], k, q, queries, num_heads);
     keys = ggml_add_inplace(m, keys, attn_out);
     keys = layer_norm(m["norm4"], keys);
 
@@ -434,7 +387,7 @@ auto two_way_transformer(
     // Apply the final attention layer from the points to the image
     tensor q = ggml_add(m, queries, point_embedding);
     tensor k = ggml_add(m, keys, image_pe);
-    tensor attn_out = attention(m["final_attn_t2i"], q, k, keys, num_heads);
+    tensor attn_out = decoder_attention(m["final_attn_t2i"], q, k, keys, num_heads);
     queries = ggml_add_inplace(m, queries, attn_out);
     queries = layer_norm(m["norm_final_attn"], queries);
 

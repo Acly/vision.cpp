@@ -55,42 +55,27 @@ tensor mlp(model_ref m, tensor x) {
     return x;
 }
 
-tensor attention(model_ref m, tensor x, int n_heads) {
+tensor self_attention(model_ref m, tensor x, int n_heads) {
     auto [c, n, b, _] = nelements(x);
-    float scale = 1.0f / std::sqrt(float(c) / float(n_heads));
-    bool flash_attn = bool(m.flags & model_build_flag::flash_attention);
-    ggml_type kv_type = flash_attn ? GGML_TYPE_F16 : GGML_TYPE_F32;
-
-    auto split = [=](model_ref m, tensor x, ggml_type type, bool transpose = false) mutable {
-        x = linear(m, x);
-        x = ggml_reshape_4d(m, x, c / n_heads, n_heads, n, b);
-        x = transpose ? ggml_permute(m, x, 1, 2, 0, 3) : ggml_permute(m, x, 0, 2, 1, 3);
-        return ggml_cast(m, x, type);
+    auto project = [&](model_ref m, tensor t) {
+        t = linear(m, t);
+        t = ggml_reshape_4d(m, t, c / n_heads, n_heads, n, b);
+        return t;
     };
 
-    tensor q = split(m["attention.query"], x, GGML_TYPE_F32);
-    tensor k = split(m["attention.key"], x, kv_type);
-    tensor v = split(m["attention.value"], x, kv_type, !flash_attn);
+    tensor q = project(m["attention.query"], x);
+    tensor k = project(m["attention.key"], x);
+    tensor v = project(m["attention.value"], x);
 
-    if (flash_attn) {
-        x = ggml_flash_attn_ext(m, q, k, v, nullptr, scale, 0.0f, 0.0f);
-    } else {
-        tensor attn = ggml_mul_mat(m, k, q);
-        attn = ggml_soft_max_ext(m, attn, nullptr, scale, 0.0f);
-
-        x = ggml_mul_mat(m, v, attn);
-        x = ggml_cont(m, ggml_permute(m, x, 0, 2, 1, 3));
-    }
-
-    x = ggml_reshape_3d(m, x, c, n, b);
-    x = linear(m["output.dense"], x);
-    return named(m, x);
+    float scale = 1.0f / std::sqrt(float(c) / float(n_heads));
+    x = attention(m, q, k, v, nullptr, scale, m["output.dense"]);
+    return x;
 }
 
 tensor layer(model_ref m, tensor x, dino_params const& p) {
     tensor attn = x;
     attn = layer_norm(m["norm1"], attn, 1e-6f);
-    attn = attention(m["attention"], attn, p.n_heads);
+    attn = self_attention(m["attention"], attn, p.n_heads);
     attn = layer_scale(m["layer_scale1"], attn);
     x = ggml_add(m, x, attn);
 

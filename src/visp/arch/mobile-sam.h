@@ -66,7 +66,7 @@ tensor position_embedding_random(model_ref m, tensor coords);
 
 tensor mlp_block(model_ref m, tensor x);
 tensor separate_attention_heads(model_ref m, tensor x, int num_heads);
-tensor attention(model_ref m, tensor q, tensor k, tensor v, int num_heads);
+tensor decoder_attention(model_ref m, tensor q, tensor k, tensor v, int num_heads);
 std::tuple<tensor, tensor> two_way_attention_block(
     model_ref m,
     tensor queries,

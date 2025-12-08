@@ -65,24 +65,6 @@ tensor window_reverse(model_ref m, tensor x, int64_t w, int64_t h, int window) {
 
 tensor window_attention(model_ref m, tensor x, tensor mask, int n_heads, int window) {
     auto [c, n, b, _] = nelements(x);
-    float scale = 1.0f / std::sqrt(float(c / n_heads));
-    bool flash_attn = bool(m.flags & model_build_flag::flash_attention);
-    ggml_type kv_type = flash_attn ? GGML_TYPE_F16 : GGML_TYPE_F32;
-
-    tensor qkv = linear(m["qkv"], x);
-    qkv = ggml_reshape_4d(m, qkv, c / n_heads, n_heads, 3, n * b);
-    qkv = ggml_cont(m, ggml_permute(m, qkv, 0, 1, 3, 2));
-
-    auto split = [=](tensor t, size_t index, ggml_type type, bool transpose = false) mutable {
-        t = slice(m, t, {}, {}, {}, index);
-        t = ggml_reshape_4d(m, t, c / n_heads, n_heads, n, b);
-        t = transpose ? ggml_permute(m, t, 1, 2, 0, 3) : ggml_permute(m, t, 0, 2, 1, 3);
-        t = ggml_cast(m, t, type); // TODO: future flash attention supports f32 and permutations
-        return t;
-    };
-    tensor q = split(qkv, 0, GGML_TYPE_F32);
-    tensor k = split(qkv, 1, kv_type);
-    tensor v = split(qkv, 2, kv_type, !flash_attn);
 
     tensor_name rel_pos_name = format<tensor_name>("window_attention_{}.rel_pos_index", window);
     tensor rel_pos_index = ggml_get_tensor(m, rel_pos_name.c_str());
@@ -104,19 +86,10 @@ tensor window_attention(model_ref m, tensor x, tensor mask, int n_heads, int win
         attn_mask = ggml_add(m, mask, attn_mask);         // [n, n, n_heads, b] + [n, n, n_heads, 1]
     }
 
-    if (flash_attn) {
-        x = ggml_flash_attn_ext(m, q, k, v, attn_mask, scale, 0.0f, 0.0f);
-        ggml_flash_attn_ext_set_prec(x, GGML_PREC_F32);
-    } else {
-        tensor attn = ggml_mul_mat(m, k, q);
-        attn = ggml_soft_max_ext(m, attn, attn_mask, scale, 0.0f);
+    auto [q, k, v] = split_qkv(m["qkv"], x, n_heads, 2);
+    float scale = 1.0f / std::sqrt(float(c / n_heads));
+    x = attention(m, q, k, v, attn_mask, scale, m["proj"]);
 
-        x = ggml_mul_mat(m, v, attn);
-        x = ggml_cont(m, ggml_permute(m, x, 0, 2, 1, 3));
-    }
-
-    x = ggml_reshape_3d(m, x, c, n, b);
-    x = linear(m["proj"], x);
     return named(m, x);
 }
 

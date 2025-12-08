@@ -205,7 +205,7 @@ DEF(sam_attention)(model_ref m, span<tensor> input, param_dict const& p) {
     tensor q = input[0];
     tensor k = m.weights("input_k");
     tensor v = m.weights("input_v");
-    return {sam::attention(m, q, k, v, 2)};
+    return {sam::decoder_attention(m, q, k, v, 2)};
 }
 
 DEF(sam_two_way_attention_block)(model_ref m, span<tensor> input, param_dict const& p) {
@@ -443,7 +443,7 @@ DEF(dino_attention)(model_ref m, span<tensor> input, param_dict const& p) {
     if (p.get("flash_attn", 0) != 0) {
         m.flags |= model_build_flag::flash_attention;
     }
-    return {dino::attention(m, input[0], p.get("n_heads", 8))};
+    return {dino::self_attention(m, input[0], p.get("n_heads", 8))};
 }
 
 DEF(dino_block)(model_ref m, span<tensor> input, param_dict const& p) {

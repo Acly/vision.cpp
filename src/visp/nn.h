@@ -41,4 +41,15 @@ tensor batch_norm_2d(model_ref, tensor x);
 // 2D image to patch embedding using convolution and optional norm. CWHN input and output.
 tensor patch_embed(model_ref, tensor x, int patch_size);
 
+struct attention_qkv {
+    tensor q, k, v;
+};
+// Input: x [head_dim*n_heads, n_patches, batch]
+// Output: q, k, v each of shape [head_dim, n_heads, n_patches, batch]
+attention_qkv split_qkv(model_ref m, tensor x, int n_heads, int split_dim);
+
+// Attention with optional mask and output linear layer.
+tensor attention(
+    model_ref m, tensor q, tensor k, tensor v, tensor mask, float scale, model_ref m_out);
+
 } // namespace visp
