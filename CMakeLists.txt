@@ -109,7 +109,7 @@ if(VISP_CI)
     endforeach()
   endif()
 endif()
-add_subdirectory(depend/ggml)
+add_subdirectory(depend/llama/ggml)
 
 # Vision.cpp libraries and executables
 
