@@ -2,6 +2,9 @@
 #include "util/string.h"
 #include "visp/nn.h"
 
+#include <cmath>
+#include <cstring>
+
 namespace visp {
 namespace swin {
 
