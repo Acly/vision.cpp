@@ -140,7 +140,7 @@ cli_args cli_parse(int argc, char** argv) {
         } else if (arg == "-o" || arg == "--output") {
             r.output = next_arg(argc, argv, i);
         } else if (arg == "-m" || arg == "--model") {
-            r.model = validate_path(next_arg(argc, argv, i));
+            r.model = next_arg(argc, argv, i);
         } else if (arg == "-p" || arg == "--prompt") {
             r.prompt = collect_args(argc, argv, i, '-');
         } else if (arg == "-b" || arg == "--backend") {
@@ -245,6 +245,42 @@ char const* to_string(tensor_data_layout l) {
     }
 }
 
+path find_model(char const* model_name_or_path) {
+    path p = path(model_name_or_path);
+    if (exists(p) || p.is_absolute()) {
+        return p;
+    }
+    path search_paths[5];
+    search_paths[0] = path("models");
+    if (char const* vision_model_dir = getenv("VISION_MODEL_DIR")) {
+        search_paths[1] = path(vision_model_dir);
+    }
+    if (char const* xdg_data_home = getenv("XDG_DATA_HOME")) {
+        search_paths[2] = path(xdg_data_home) / "visioncpp";
+    }
+    if (char const* home = getenv("HOME")) {
+        search_paths[3] = path(home) / ".local/share/visioncpp";
+    }
+    if constexpr (VISP_MODEL_INSTALL_DIR[0] != '\0') {
+        search_paths[4] = path(VISP_MODEL_INSTALL_DIR);
+    }
+    for (auto& sp : search_paths) {
+        if (!sp.empty()) {
+            path candidate = sp / p;
+            if (exists(candidate)) {
+                return candidate;
+            }
+        }
+    }
+    printf("Looking for %s\n", p.generic_string().c_str());
+    for (auto& sp : search_paths) {
+        if (!sp.empty()) {
+            printf("Looking for %s\n", (sp / p).generic_string().c_str());
+        }
+    }
+    throw except("Model file not found: {}", model_name_or_path);
+}
+
 std::tuple<model_file, model_weights> load_model_weights(
     cli_args const& args,
     backend_device const& dev,
@@ -253,10 +289,11 @@ std::tuple<model_file, model_weights> load_model_weights(
     tensor_data_layout preferred_layout = tensor_data_layout::unknown) {
 
     timer t;
-    char const* model_path = args.model ? args.model : default_model;
-    printf("Loading model weights from '%s'... ", model_path);
+    path model_path = find_model(args.model ? args.model : default_model);
+    auto model_path_str = model_path.generic_string();
+    printf("Loading model weights from '%s'... ", model_path_str.c_str());
 
-    model_file file = model_load(model_path);
+    model_file file = model_load(model_path_str.c_str());
     model_weights weights = model_init(file.n_tensors() + n_tensors);
     if (preferred_layout == tensor_data_layout::unknown) {
         preferred_layout = file.tensor_layout();
@@ -355,7 +392,7 @@ sam_prompt sam_parse_prompt(std::span<char const* const> args, i32x2 extent) {
 void run_sam(cli_args const& args) {
     backend_device backend = backend_init(args);
     auto [file, weights] = load_model_weights(
-        args, backend, "models/MobileSAM-F16.gguf", 0, backend.preferred_layout());
+        args, backend, "MobileSAM-F16.gguf", 0, backend.preferred_layout());
     sam_params params{};
 
     require_inputs(args.inputs, 1, "<image>");
@@ -409,7 +446,7 @@ void run_sam(cli_args const& args) {
 void run_birefnet(cli_args const& args) {
     backend_device backend = backend_init(args);
     auto [file, weights] = load_model_weights(
-        args, backend, "models/BiRefNet-F16.gguf", 0, backend.preferred_layout());
+        args, backend, "BiRefNet-lite-F16.gguf", 0, backend.preferred_layout());
 
     require_inputs(args.inputs, 1, "<image>");
     image_data image = image_load(args.inputs[0]);
@@ -453,7 +490,7 @@ void run_birefnet(cli_args const& args) {
 void run_depth_anything(cli_args const& args) {
     backend_device backend = backend_init(args);
     auto [file, weights] = load_model_weights(
-        args, backend, "models/DepthAnythingV2-Small-F32.gguf", 0, backend.preferred_layout());
+        args, backend, "DepthAnythingV2-Small-F32.gguf", 0, backend.preferred_layout());
 
     require_inputs(args.inputs, 1, "<image>");
     image_data image = image_load(args.inputs[0]);
@@ -489,7 +526,7 @@ void run_depth_anything(cli_args const& args) {
 void run_migan(cli_args const& args) {
     backend_device backend = backend_init(args);
     auto [file, weights] = load_model_weights(
-        args, backend, "models/MIGAN-512-places2-F16.gguf", backend.preferred_layout());
+        args, backend, "MIGAN-512-places2-F16.gguf", backend.preferred_layout());
     migan_params params = migan_detect_params(file);
     params.invert_mask = true; // -> inpaint opaque areas
 
@@ -527,7 +564,7 @@ void run_migan(cli_args const& args) {
 void run_esrgan(cli_args const& args) {
     backend_device backend = backend_init(args);
     auto [file, weights] = load_model_weights(
-        args, backend, "models/RealESRGAN-x4.gguf", 0, backend.preferred_layout());
+        args, backend, "RealESRGAN-x4.gguf", 0, backend.preferred_layout());
     esrgan_params params = esrgan_detect_params(file);
     printf("- scale: %dx\n", params.scale);
     printf("- block count: %d\n", params.n_blocks);
