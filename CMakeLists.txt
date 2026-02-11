@@ -9,6 +9,7 @@ option(VISP_CI "Enable for continuous integration environment" OFF)
 option(VISP_TESTS "Build tests" ${PROJECT_IS_TOP_LEVEL})
 option(VISP_INSTALL_MODELS "Download and install default models" OFF)
 option(VISP_FMT_LIB "Use external fmt library instead of standard C++ <format>" OFF)
+option(VISP_STATIC_GGML "Force static build of ggml" OFF)
 option(VISP_ASAN "Enable AddressSanitizer" OFF)
 
 include(GNUInstallDirs)
@@ -103,6 +104,11 @@ if(VISP_FMT_LIB)
   list(APPEND VISP_DEFINITIONS VISP_FMT_LIB)
 endif()
 
+set(BUILD_SHARED_LIBS_SAVED ${BUILD_SHARED_LIBS})
+if(VISP_STATIC_GGML)
+  set(BUILD_SHARED_LIBS OFF)
+  set(GGML_STATIC ON)
+endif()
 set(GGML_VULKAN ${VISP_VULKAN})
 set(GGML_LLAMAFILE ON)
 if(VISP_CI)
@@ -119,6 +125,7 @@ if(VISP_CI)
   endif()
 endif()
 add_subdirectory(depend/llama/ggml)
+set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_SAVED})
 
 # Vision.cpp libraries and executables
 
