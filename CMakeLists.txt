@@ -1,14 +1,24 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(vision.cpp VERSION 0.3.0 LANGUAGES CXX)
+project(vision.cpp VERSION 0.3.1 LANGUAGES CXX)
 
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static libraries" ON)
 option(VISP_VULKAN "Enable Vulkan support" OFF)
 option(VISP_DEV "Enable development mode" OFF)
 option(VISP_CI "Enable for continuous integration environment" OFF)
 option(VISP_TESTS "Build tests" ${PROJECT_IS_TOP_LEVEL})
+option(VISP_INSTALL_MODELS "Download and install default models" OFF)
 option(VISP_FMT_LIB "Use external fmt library instead of standard C++ <format>" OFF)
+option(VISP_STATIC_GGML "Force static build of ggml" OFF)
 option(VISP_ASAN "Enable AddressSanitizer" OFF)
+
+include(GNUInstallDirs)
+set(VISP_INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR} CACHE PATH "Location of header files")
+set(VISP_LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR} CACHE PATH "Location of library files")
+set(VISP_BIN_INSTALL_DIR ${CMAKE_INSTALL_BINDIR} CACHE PATH "Location of binary files")
+if(VISP_INSTALL_MODELS)
+  set(VISP_MODEL_INSTALL_DIR "${CMAKE_INSTALL_DATAROOTDIR}/visioncpp" CACHE PATH "Directory to install default models to")
+endif()
 
 if(PROJECT_IS_TOP_LEVEL)
   set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -94,6 +104,12 @@ if(VISP_FMT_LIB)
   list(APPEND VISP_DEFINITIONS VISP_FMT_LIB)
 endif()
 
+set(BUILD_SHARED_LIBS_SAVED ${BUILD_SHARED_LIBS})
+if(VISP_STATIC_GGML)
+  set(BUILD_SHARED_LIBS OFF)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  set(GGML_STATIC ON)
+endif()
 set(GGML_VULKAN ${VISP_VULKAN})
 set(GGML_LLAMAFILE ON)
 if(VISP_CI)
@@ -110,6 +126,7 @@ if(VISP_CI)
   endif()
 endif()
 add_subdirectory(depend/llama/ggml)
+set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_SAVED})
 
 # Vision.cpp libraries and executables
 
@@ -121,14 +138,12 @@ add_subdirectory(src/cli)
 if(VISP_TESTS)
   enable_testing()
   add_subdirectory(tests)
+endif()
+if(VISP_TESTS OR VISP_INSTALL_MODELS)
   add_subdirectory(models)
 endif()
 
 # Installation
-
-set(VISP_INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR} CACHE PATH "Location of header files")
-set(VISP_LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR} CACHE PATH "Location of library files")
-set(VISP_BIN_INSTALL_DIR ${CMAKE_INSTALL_BINDIR} CACHE PATH "Location of binary files")
 
 install(TARGETS visioncpp
   RUNTIME DESTINATION ${VISP_BIN_INSTALL_DIR}
@@ -137,6 +152,9 @@ install(TARGETS visioncpp
 install(DIRECTORY include/ DESTINATION ${VISP_INCLUDE_INSTALL_DIR})
 if(PROJECT_IS_TOP_LEVEL)
   install(FILES README.md LICENSE DESTINATION .)
+endif()
+if(VISP_INSTALL_MODELS)
+  install(FILES ${VISP_DEFAULT_MODELS} DESTINATION ${VISP_MODEL_INSTALL_DIR})
 endif()
 
 install(TARGETS vision-cli RUNTIME DESTINATION ${VISP_BIN_INSTALL_DIR})
