@@ -1,0 +1,69 @@
+name: Package Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build package (static ggml)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build
+
+      - name: Build package archive
+        run: |
+          bash ./scripts/pkg-check/check-package.sh build \
+            --work-dir "$RUNNER_TEMP/pkg-check-build" \
+            --archive "$RUNNER_TEMP/pkg-check-build/visioncpp-package.tgz"
+
+      - name: Upload package archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: visioncpp-package-linux
+          path: ${{ runner.temp }}/pkg-check-build/visioncpp-package.tgz
+          if-no-files-found: error
+
+  check:
+    name: Verify package (consumer check)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build
+
+      - name: Download package archive
+        uses: actions/download-artifact@v4
+        with:
+          name: visioncpp-package-linux
+          path: ${{ runner.temp }}/pkg-check-artifact
+
+      - name: Verify package from archive
+        run: |
+          bash ./scripts/pkg-check/check-package.sh check \
+            --work-dir "$RUNNER_TEMP/pkg-check-check" \
+            --from-archive "$RUNNER_TEMP/pkg-check-artifact/visioncpp-package.tgz"
