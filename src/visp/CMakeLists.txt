@@ -28,10 +28,10 @@ target_link_libraries(visioncpp
   PUBLIC ggml
   PRIVATE stb ${VISP_FMT_LINK}
 )
-# set_target_properties(visioncpp PROPERTIES
-#   VERSION ${PROJECT_VERSION}
-#   SOVERSION ${PROJECT_VERSION_MAJOR}
-# )
+set_target_properties(visioncpp PROPERTIES
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR}
+)
 
 if (MSVC AND VISP_TESTS)
   set_target_properties(visioncpp PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)

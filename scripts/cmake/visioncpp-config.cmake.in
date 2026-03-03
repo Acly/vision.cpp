@@ -3,6 +3,7 @@
 set_and_check(VISP_INCLUDE_DIR "@PACKAGE_VISP_INCLUDE_INSTALL_DIR@")
 set_and_check(VISP_LIB_DIR "@PACKAGE_VISP_LIB_INSTALL_DIR@")
 
+include(CMakeFindDependencyMacro)
 find_dependency(ggml)
 
 find_library(VISP_LIBRARY visioncpp REQUIRED HINTS ${VISP_LIB_DIR} NO_CMAKE_FIND_ROOT_PATH)

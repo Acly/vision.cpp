@@ -109,6 +109,9 @@ if(VISP_STATIC_GGML)
   set(BUILD_SHARED_LIBS OFF)
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
   set(GGML_STATIC ON)
+  # Find shared libgomp before ggml finds a static version
+  # - undo https://github.com/ggml-org/llama.cpp/pull/16031
+  find_package(OpenMP)
 endif()
 set(GGML_VULKAN ${VISP_VULKAN})
 set(GGML_LLAMAFILE ON)
