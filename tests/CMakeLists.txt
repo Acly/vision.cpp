@@ -45,6 +45,10 @@ target_compile_options(vision-workbench PRIVATE ${VISP_COMP_OPTIONS})
 target_link_options(vision-workbench PRIVATE ${VISP_LINK_OPTIONS})
 target_link_libraries(vision-workbench PRIVATE visioncpp ggml ${VISP_FMT_LINK})
 
+if(VISP_PACKAGE)
+  message(WARNING "Some tests may not work due to symbol visibility settings for packaging. Use VISP_PACKAGE=OFF to run all tests. Use VISP_TESTS=OFF when packaging.")
+endif()  
+
 #
 # Python tests
 
