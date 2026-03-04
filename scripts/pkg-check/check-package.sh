@@ -85,7 +85,7 @@ step1() {
     -D VISP_VULKAN=OFF \
     -D VISP_TESTS=OFF \
     -D VISP_STATIC_GGML=ON \
-    -D VISP_INSTALL_MODELS=ON
+    -D VISP_PACKAGE=ON
 
   cmake --build "$SRC_BUILD_DIR"
 

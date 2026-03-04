@@ -33,6 +33,6 @@ set_target_properties(visioncpp PROPERTIES
   SOVERSION ${PROJECT_VERSION_MAJOR}
 )
 
-if (MSVC AND VISP_TESTS)
+if (MSVC AND VISP_TESTS AND NOT VISP_PACKAGE)
   set_target_properties(visioncpp PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
