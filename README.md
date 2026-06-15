@@ -125,6 +125,24 @@ vision-cli migan -m MIGAN-512-places2-F16.gguf -i image.png mask.png -o output.p
 vision-cli esrgan -m ESRGAN-4x-foolhardy_Remacri-F16.gguf -i input.png -o output.png
 ```
 
+#### GTX Compiler — generated archs (this fork)
+
+This fork is used as the runtime backend for [GTX Compiler](https://github.com/Sudo42b/GTX_Compiler)
+(`g2c`), which converts PyTorch models into vision.cpp arch-style C++ (`<Model>.cpp/.h`) plus a
+GGUF weight file. The generated `.cpp` builds against this library's ggml primitives and runs on
+the same graph engine — no hand-written arch needed.
+
+Verified against PyTorch (cosine ≈ 1.0 after building the generated `.cpp`):
+
+| Type | Models | Notes |
+|------|--------|-------|
+| Classification | ResNet18 / 50 | Conv-BN fold |
+| Detection | YOLO v8 / v10 / v11 / v12 | detection head incl. |
+| **Sequence** | **LSTM / GRU** | uni/bi-directional, multi-layer; sequence is statically unrolled into ggml gates (`mul_mat`/`sigmoid`/`tanh`/`mul`/`view`/`concat`) — no RNN op in ggml required |
+
+RNN inputs are 3D sequences `[feat, seq, batch]` (cwhn layout conversion is skipped for RNN archs).
+See the GTX Compiler repo for the `g2c` CLI and the `tools/build_rnn_cpp.sh` / `tools/rnn_cpp_verify.py`
+verification harness.
 
 ### Converting models
 
