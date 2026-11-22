@@ -169,6 +169,9 @@ if(VISP_INSTALL_MODELS)
 endif()
 
 install(TARGETS vision-cli RUNTIME DESTINATION ${VISP_BIN_INSTALL_DIR})
+if(UNIX)
+  install(TARGETS vision-server RUNTIME DESTINATION ${VISP_BIN_INSTALL_DIR})
+endif()
 
 if(VISP_CI OR VISP_DEV)
   set_target_properties(vision-cli PROPERTIES INSTALL_RPATH "\$ORIGIN/../${VISP_LIB_INSTALL_DIR}")

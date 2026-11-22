@@ -60,6 +60,24 @@ add_test(NAME python
   COMMAND uv run pytest -vs tests ${PYTHON_TESTS_ARGS})
 
 #
+# HTTP server tests (POSIX only)
+
+if(UNIX)
+  add_executable(test-server)
+  target_sources(test-server PRIVATE
+    testing.cpp
+    test-json.cpp
+    test-server.cpp
+  )
+  target_include_directories(test-server PRIVATE . ../src)
+  target_compile_definitions(test-server PRIVATE ${VISP_ASSERT} ${VISP_DEFINITIONS})
+  target_compile_options(test-server PRIVATE ${VISP_WARNINGS} ${VISP_COMP_OPTIONS})
+  target_link_options(test-server PRIVATE ${VISP_LINK_OPTIONS})
+  target_link_libraries(test-server PRIVATE visioncpp ${VISP_FMT_LINK})
+  add_test(NAME server COMMAND test-server -v)
+endif()
+
+#
 # Benchmarks
 
 add_executable(vision-bench)
