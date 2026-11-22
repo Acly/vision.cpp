@@ -433,9 +433,9 @@ void check_device_budget(compute_graph const& g, server& s) {
     if (need > cap) {
         throw http_error(
             503,
-            "this request would use ~{} MB of {} memory, more than the {} MB cap ({}); use a smaller image or raise the cap",
-            need / (1024 * 1024),
-            ggml_backend_dev_name(ggml_backend_get_device(s.backend)),
+            "this request would use ~{} MB of {} memory, more than the {} MB cap ({}); use a "
+            "smaller image or raise the cap",
+            need / (1024 * 1024), ggml_backend_dev_name(ggml_backend_get_device(s.backend)),
             s.cfg.max_arena_mb,
             s.cfg.max_arena_mb == DEFAULT_MAX_ARENA_MB ? "the default" : "--max-arena");
     }
@@ -516,30 +516,53 @@ json_value sam_predict(server& s, model_entry& m, image_data const& image, json_
         is_box = true;
     }
 
-    compute_graph graph = compute_graph_init();
-    model_ref model(m.weights, graph);
-
     uint64_t key = hash_bytes(
         std::span<unsigned char const>(
             image.data.get(), size_t(image.extent[0]) * image.extent[1] * 3));
-    tensor image_embed;
-    tensor image_tensor{};
-    image_data input_data;
-    bool cache_hit = false;
-    if (m.sam_cache.valid && m.sam_cache.key == key) {
-        // Same image as the previous request: re-upload the cached encoder
-        // output instead of running TinyViT again. The raw image input is not
-        // part of the graph on this path (and must not be transferred).
-        image_embed = compute_graph_input(
-            model, m.sam_cache.embed_type, m.sam_cache.embed_ne, "image_embed");
-        cache_hit = true;
-    } else {
-        input_data = sam_process_input(image, m.sam_p);
-        image_tensor = compute_graph_input(
-            model, GGML_TYPE_F32, {3, m.sam_p.image_size, m.sam_p.image_size, 1}, "image");
-        image_embed = sam_encode_image(model, image_tensor, m.sam_p);
+
+    // Phase 1 — the encoder, in a graph of its own. Its output buffer
+    // cannot be reused by any later op of the same graph, so the
+    // post-compute host copy is the true encoder output. If the encoder
+    // ran inside the combined encode+predict graph, a later in-place op
+    // could write into that buffer and the cached "embedding" would be
+    // stale intermediate data - the next cache-hit request then predicts
+    // from garbage (measured: the first request of a server was correct,
+    // every cache hit drifted).
+    bool cache_hit = m.sam_cache.valid && m.sam_cache.key == key;
+    if (!cache_hit) {
+        compute_graph graph1 = compute_graph_init();
+        model_ref model1(m.weights, graph1);
+        image_data input_data = sam_process_input(image, m.sam_p);
+        tensor image_tensor = compute_graph_input(
+            model1, GGML_TYPE_F32, {3, m.sam_p.image_size, m.sam_p.image_size, 1}, "image");
+        tensor image_embed = sam_encode_image(model1, image_tensor, m.sam_p);
+        // The encoder chain only exists in the context until something
+        // expands the graph (the predict path does it for the combined
+        // graph). Mark the encoder output as this graph's output, which
+        // registers the whole chain - including the image input - so the
+        // allocator can give them buffers.
+        compute_graph_output(model1, image_embed, "image_embed");
+
+        check_device_budget(graph1, s);
+        compute_graph_allocate(graph1, s.backend);
+        transfer_to_backend(image_tensor, input_data);
+        compute(graph1, s.backend);
+
+        auto ne = nelements(image_embed);
+        m.sam_cache.valid = true;
+        m.sam_cache.key = key;
+        m.sam_cache.embed_type = image_embed->type;
+        m.sam_cache.embed_ne = {ne[0], ne[1], ne[2], ne[3]};
+        m.sam_cache.embed_host = transfer_from_backend(image_embed);
     }
 
+    // Phase 2 — the predictor. The embedding is always an input tensor
+    // filled from the host copy (a few MB - trivial on either backend);
+    // the prompt is encoded in this same graph.
+    compute_graph graph = compute_graph_init();
+    model_ref model(m.weights, graph);
+    tensor image_embed = compute_graph_input(
+        model, m.sam_cache.embed_type, m.sam_cache.embed_ne, "image_embed");
     tensor point_tensor = compute_graph_input(model, GGML_TYPE_F32, {2, 2, 1, 1}, "points");
     tensor prompt_embed = is_box ? sam_encode_box(model, point_tensor)
                                  : sam_encode_points(model, point_tensor);
@@ -551,33 +574,20 @@ json_value sam_predict(server& s, model_entry& m, image_data const& image, json_
     check_device_budget(graph, s);
     compute_graph_allocate(graph, s.backend);
 
-    if (cache_hit) {
-        // The cached host buffer outlives the graph that produced it, so the
-        // tensor it came from is gone - size the span from the cached shape
-        // and type instead of asking the (freed) tensor.
-        int64_t const ne = m.sam_cache.embed_ne[0] * m.sam_cache.embed_ne[1] *
-            m.sam_cache.embed_ne[2] * m.sam_cache.embed_ne[3];
-        std::span<byte const> embed_bytes{
-            m.sam_cache.embed_host->data.get(),
-            size_t(ne) * ggml_type_size(m.sam_cache.embed_type)};
-        transfer_to_backend(image_embed, embed_bytes);
-    } else {
-        transfer_to_backend(image_tensor, input_data);
-    }
+    // The cached host buffer outlives the graph that produced it, so the
+    // tensor it came from is gone - size the span from the cached shape
+    // and type instead of asking the (freed) tensor.
+    int64_t const ne = m.sam_cache.embed_ne[0] * m.sam_cache.embed_ne[1] * m.sam_cache.embed_ne[2] *
+        m.sam_cache.embed_ne[3];
+    std::span<byte const> embed_bytes{
+        m.sam_cache.embed_host->data.get(), size_t(ne) * ggml_type_size(m.sam_cache.embed_type)};
+    transfer_to_backend(image_embed, embed_bytes);
     transfer_to_backend(point_tensor, span(prompt_data.v, 4));
 
     compute(graph, s.backend);
 
     tensor_data iou_data = transfer_from_backend(output.iou);
     tensor_data mask_data = transfer_from_backend(output.masks);
-
-    // Cache the encoder output for the next request on this image.
-    auto ne = nelements(image_embed);
-    m.sam_cache.valid = true;
-    m.sam_cache.key = key;
-    m.sam_cache.embed_type = image_embed->type;
-    m.sam_cache.embed_ne = {ne[0], ne[1], ne[2], ne[3]};
-    m.sam_cache.embed_host = transfer_from_backend(image_embed);
 
     auto ious = iou_data.as_f32();
     json_value result;
