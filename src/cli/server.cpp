@@ -416,6 +416,31 @@ void reserve_arena(backend_device const& b, size_t bytes) {
     printf("done (%s)\n", ts.c_str());
 }
 
+// The device budget for one request. This ggml-vulkan allocates per tensor
+// (there is no arena to clamp), so the budget is checked *before* the graph
+// allocates: a dry run of the graph allocator (no_alloc) reports exactly the
+// buffer the real allocation would create - in-place ops included, which is
+// why summing tensor sizes would overcount - and an over-budget request is
+// refused with its measured figure instead of dying mid-allocation inside
+// another client's headroom.
+void check_device_budget(compute_graph const& g, server& s) {
+    ggml_gallocr_t tmp = ggml_gallocr_new(ggml_backend_get_default_buffer_type(s.backend));
+    size_t need = 0;
+    ggml_gallocr_reserve_n_size(tmp, g.graph, nullptr, nullptr, &need);
+    ggml_gallocr_free(tmp);
+
+    size_t const cap = s.cfg.max_arena_mb * 1024 * 1024;
+    if (need > cap) {
+        throw http_error(
+            503,
+            "this request would use ~{} MB of {} memory, more than the {} MB cap ({}); use a smaller image or raise the cap",
+            need / (1024 * 1024),
+            ggml_backend_dev_name(ggml_backend_get_device(s.backend)),
+            s.cfg.max_arena_mb,
+            s.cfg.max_arena_mb == DEFAULT_MAX_ARENA_MB ? "the default" : "--max-arena");
+    }
+}
+
 model_entry& server_find_model(server& s, model_family family) {
     for (auto& m : s.models) {
         if (m.loaded && m.family == family) {
@@ -523,6 +548,7 @@ json_value sam_predict(server& s, model_entry& m, image_data const& image, json_
 
     // Allocate before the transfers: input tensors have no buffer until the
     // graph allocation runs (this is why the CLI allocates first).
+    check_device_budget(graph, s);
     compute_graph_allocate(graph, s.backend);
 
     if (cache_hit) {
@@ -591,6 +617,7 @@ json_value birefnet_predict(server& s, model_entry& m, image_data const& image) 
         model, GGML_TYPE_F32, {3, p.image_extent[0], p.image_extent[1], 1});
     tensor output = birefnet_predict(model, input, p);
 
+    check_device_budget(graph, s);
     compute_graph_allocate(graph, s.backend);
     transfer_to_backend(input, input_data);
     for (tensor_data const& buf : buffers) {
@@ -613,6 +640,7 @@ json_value depthany_predict(server& s, model_entry& m, image_data const& image) 
         model, GGML_TYPE_F32, {3, p.image_extent[0], p.image_extent[1], 1});
     tensor output = depthany_predict(model, input, p);
 
+    check_device_budget(graph, s);
     compute_graph_allocate(graph, s.backend);
     transfer_to_backend(input, input_data);
     compute(graph, s.backend);
@@ -632,6 +660,7 @@ json_value migan_predict(
     tensor input = compute_graph_input(model, GGML_TYPE_F32, input_shape);
     tensor output = migan_generate(model, input, m.migan_p);
 
+    check_device_budget(graph, s);
     compute_graph_allocate(graph, s.backend);
     transfer_to_backend(input, input_data);
     compute(graph, s.backend);
@@ -660,6 +689,7 @@ json_value esrgan_predict(server& s, model_entry& m, image_data const& image, in
     i64x4 input_shape = {3, tiles.tile_size[0], tiles.tile_size[1], 1};
     tensor input = compute_graph_input(model, GGML_TYPE_F32, input_shape);
     tensor output = esrgan_generate(model, input, m.esrgan_p);
+    check_device_budget(graph, s);
     compute_graph_allocate(graph, s.backend);
 
     for (int t = 0; t < tiles.total(); ++t) {
@@ -884,7 +914,9 @@ Options:
     -p, --port <n>               Port to listen on (default: 8080)
     -m, --model <file>           Model file (.gguf), repeatable
     -b, --backend <auto|cpu|gpu> Backend type (default: auto)
-    --max-arena <MB>             Maximum GPU memory to reserve (default: 4096)
+    --max-arena <MB>             Device-memory budget per request (default: 4096) - probed at boot
+                                 and enforced before each graph allocation, so the server fails
+                                 loudly instead of starving other GPU tenants
     -h, --help                   Print usage and exit
 
 Routes (images are PNG or JPEG, base64-encoded; data: URLs accepted):

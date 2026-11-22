@@ -102,7 +102,8 @@ struct test_server {
     int pid = -1;
     int port = 0;
 
-    test_server() {
+    explicit test_server(std::vector<std::string> extra_args = {})
+    {
         // Pick a free port
         int probe = ::socket(AF_INET, SOCK_STREAM, 0);
         if (probe < 0) {
@@ -139,6 +140,15 @@ struct test_server {
             storage.push_back("cpu");
             storage.push_back("-m");
             storage.push_back(model.string());
+            // MobileSAM's CPU graph wants ~5.6 GB of live tensors; the default
+            // 4 GB budget would refuse it. Tests run where that is cheap.
+            if (extra_args.empty()) {
+                storage.push_back("--max-arena");
+                storage.push_back("16384");
+            }
+            for (auto& a : extra_args) {
+                storage.push_back(a);
+            }
             std::vector<char*> argv;
             for (auto& s : storage) {
                 argv.push_back(const_cast<char*>(s.c_str()));
@@ -297,6 +307,23 @@ VISP_TEST(server_sam_box_rejects_inverted) {
     std::string body = "{\"image\": \"" + image_b64() +
         "\", \"box\": {\"x1\": 300, \"y1\": 300, \"x2\": 100, \"y2\": 100}}";
     post_json_expect_status("/sam", body, 400);
+}
+
+VISP_TEST(server_rejects_over_budget) {
+    // A 16 MB device budget cannot hold MobileSAM's graph; the server must
+    // refuse before allocating, with the measured figure, not mid-alloc OOM.
+    test_server s({"--max-arena", "16"});
+    std::string body = "{\"image\": \"" + image_b64() + "\", \"point\": {\"x\": 300, \"y\": 200}}";
+    int fd = connect_to(s.port);
+    std::string head = "POST /sam HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: "
+                       "application/json\r\nContent-Length: " +
+        std::to_string(body.size()) + "\r\n\r\n";
+    send_all(fd, head);
+    send_all(fd, body);
+    std::string resp = read_rest(fd);
+    ::close(fd);
+    CHECK_EQUAL(http_status(resp), 503);
+    CHECK(resp.find("more than the 16 MB cap") != std::string::npos);
 }
 
 VISP_TEST(server_expect_100_continue) {
