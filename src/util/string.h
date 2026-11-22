@@ -2,8 +2,14 @@
 
 #include "visp/util.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
+#include <span>
+#include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 #ifdef VISP_FMT_LIB
 #    include <fmt/format.h>
@@ -81,6 +87,87 @@ String format(char const* fmt, Args&&... args) {
 template <typename... Args>
 exception except(char const* fmt, Args&&... args) {
     return exception(format<fixed_string<128>>(fmt, std::forward<Args>(args)...));
+}
+
+//
+// Base64
+
+inline std::string base64_encode(std::span<std::byte const> data) {
+    static char const alphabet[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string out;
+    out.reserve((data.size() + 2) / 3 * 4);
+    size_t i = 0;
+    while (i + 3 <= data.size()) {
+        uint32_t v = (uint32_t(uint8_t(data[i])) << 16) | (uint32_t(uint8_t(data[i + 1])) << 8) |
+            uint32_t(uint8_t(data[i + 2]));
+        out += alphabet[(v >> 18) & 63];
+        out += alphabet[(v >> 12) & 63];
+        out += alphabet[(v >> 6) & 63];
+        out += alphabet[v & 63];
+        i += 3;
+    }
+    if (i < data.size()) {
+        uint32_t v = uint32_t(uint8_t(data[i])) << 16;
+        bool two = i + 1 < data.size();
+        if (two) {
+            v |= uint32_t(uint8_t(data[i + 1])) << 8;
+        }
+        out += alphabet[(v >> 18) & 63];
+        out += alphabet[(v >> 12) & 63];
+        out += two ? alphabet[(v >> 6) & 63] : '=';
+        out += '=';
+    }
+    return out;
+}
+
+inline std::vector<std::byte> base64_decode(std::string_view in) {
+    auto value = [](char c) -> int {
+        if (c >= 'A' && c <= 'Z')
+            return c - 'A';
+        if (c >= 'a' && c <= 'z')
+            return c - 'a' + 26;
+        if (c >= '0' && c <= '9')
+            return c - '0' + 52;
+        if (c == '+')
+            return 62;
+        if (c == '/')
+            return 63;
+        throw except("Invalid base64 character: {}", c);
+    };
+    std::string_view s = in;
+    size_t pad = 0;
+    while (!s.empty() && (s.back() == '=' || s.back() == '\n' || s.back() == '\r')) {
+        if (s.back() == '=') {
+            ++pad;
+        }
+        s.remove_suffix(1);
+    }
+    // A valid stream is a multiple of four including padding; the stripped
+    // tail (2 or 3 chars) is the final partial group.
+    if (in.size() % 4 != 0) {
+        throw except("Invalid base64 length: {}", in.size());
+    }
+    if (pad > 2) {
+        throw except("Too much base64 padding");
+    }
+    std::vector<std::byte> out;
+    out.reserve(s.size() / 4 * 3);
+    size_t i = 0;
+    while (i < s.size()) {
+        size_t chunk = std::min(size_t(4), s.size() - i);
+        uint32_t v = 0;
+        for (size_t j = 0; j < chunk; ++j) {
+            v = (v << 6) | uint32_t(value(s[i + j]));
+        }
+        v <<= (4 - chunk) * 6; // align a short final group to the top
+        size_t nbytes = (chunk * 3) / 4;
+        for (size_t b = 0; b < nbytes; ++b) {
+            out.push_back(std::byte((v >> (16 - 8 * b)) & 0xFF));
+        }
+        i += chunk;
+    }
+    return out;
 }
 
 inline void assertion_failure(char const* file, int line, char const* expr) {
